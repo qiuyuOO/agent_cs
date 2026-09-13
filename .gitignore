@@ -1,0 +1,48 @@
+# --- 密钥与本地配置 (绝不入库) ---
+.env
+.env.*
+!.env.example
+
+# --- 运行时产物 / 中间文件 ---
+# data/ 是本地用户状态 (偏好 / 运行记录的 sqlite), 不该进版本库;
+# 用 .gitkeep 保留空目录本身。
+data/
+!data/.gitkeep
+out/
+work/
+assets/
+*.mp4
+*.mkv
+*.wav
+*.mp3
+!_keep/
+
+# clipstore 是运行期生成的片段缓存目录 (名字带随机后缀, 权限还经常锁住),
+# 既不该入库也不该让 git 每次扫描时报 "Permission denied"
+clipstore_*/
+
+# --- 依赖与工具 (体积大, 可由 requirements.txt 重建) ---
+.venv/
+tools/
+.cache/
+.home/
+.deps/
+.pipcache/
+.tmp/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+
+# --- IDE / 系统 ---
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini

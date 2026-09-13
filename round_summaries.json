@@ -1,0 +1,2177 @@
+[
+  {
+    "round_num": 1,
+    "winner_side": "t",
+    "start_tick": 3564,
+    "end_tick": 7533,
+    "duration_sec": 62.02,
+    "kills": [
+      {
+        "tick": 5971,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": false
+      },
+      {
+        "tick": 6955,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": true
+      },
+      {
+        "tick": 7010,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 7180,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": true
+      },
+      {
+        "tick": 7377,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": false
+      },
+      {
+        "tick": 7533,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0131wut1gIhX",
+      "attacker_side": "t",
+      "victim": "谁是幼稚大王",
+      "weapon": "glock",
+      "tick": 5971
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 1
+    }
+  },
+  {
+    "round_num": 2,
+    "winner_side": "t",
+    "start_tick": 7981,
+    "end_tick": 12326,
+    "duration_sec": 67.89,
+    "kills": [
+      {
+        "tick": 10061,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "ssg08",
+        "is_headshot": true
+      },
+      {
+        "tick": 10284,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      },
+      {
+        "tick": 10781,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      },
+      {
+        "tick": 10935,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "hkp2000",
+        "is_headshot": false
+      },
+      {
+        "tick": 11927,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 12326,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "t",
+      "victim": "谁是幼稚大王",
+      "weapon": "ssg08",
+      "tick": 10061
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 3,
+    "winner_side": "ct",
+    "start_tick": 12774,
+    "end_tick": 17492,
+    "duration_sec": 73.72,
+    "kills": [
+      {
+        "tick": 14611,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": true
+      },
+      {
+        "tick": 14636,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 14674,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 14776,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 16507,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": true
+      },
+      {
+        "tick": 16542,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 16604,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 17492,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "我是保枪协会会长",
+      "attacker_side": "t",
+      "victim": "用户0729UipWZUAK",
+      "weapon": "galilar",
+      "tick": 14611
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 1,
+      "clutch_kills_ticks": [
+        16604
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 4,
+    "winner_side": "t",
+    "start_tick": 17940,
+    "end_tick": 24000,
+    "duration_sec": 94.69,
+    "kills": [
+      {
+        "tick": 19627,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 19674,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 21552,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 22229,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 22799,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 22819,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 23496,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": true
+      },
+      {
+        "tick": 23690,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 24000,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0311p7kUPWis",
+      "attacker_side": "t",
+      "victim": "别看我--",
+      "weapon": "ak47",
+      "tick": 19627
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 2,
+      "kills_in_clutch": 1,
+      "clutch_kills_ticks": [
+        23690
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 4
+    }
+  },
+  {
+    "round_num": 5,
+    "winner_side": "t",
+    "start_tick": 24448,
+    "end_tick": 28810,
+    "duration_sec": 68.16,
+    "kills": [
+      {
+        "tick": 26434,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": false
+      },
+      {
+        "tick": 26478,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "fiveseven",
+        "is_headshot": true
+      },
+      {
+        "tick": 26715,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 26816,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "mp9",
+        "is_headshot": false
+      },
+      {
+        "tick": 26925,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 27048,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 28360,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "fiveseven",
+        "is_headshot": false
+      },
+      {
+        "tick": 28810,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "王宇瑄",
+      "attacker_side": "t",
+      "victim": "工藤真琴",
+      "weapon": "mac10",
+      "tick": 26434
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 1,
+      "clutch_kills_ticks": [
+        28360
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 6,
+    "winner_side": "t",
+    "start_tick": 29258,
+    "end_tick": 37965,
+    "duration_sec": 136.05,
+    "kills": [
+      {
+        "tick": 32918,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      },
+      {
+        "tick": 33025,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": false
+      },
+      {
+        "tick": 33350,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "revolver",
+        "is_headshot": false
+      },
+      {
+        "tick": 33735,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 33752,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "ssg08",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "王宇瑄",
+      "attacker_side": "t",
+      "victim": "用户0729UipWZUAK",
+      "weapon": "mac10",
+      "tick": 32918
+    },
+    "clutch": null,
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 7,
+    "winner_side": "ct",
+    "start_tick": 38413,
+    "end_tick": 46733,
+    "duration_sec": 130.0,
+    "kills": [
+      {
+        "tick": 39921,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 42410,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 43049,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 43329,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 43592,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "negev",
+        "is_headshot": false
+      },
+      {
+        "tick": 44272,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "工藤真琴",
+      "attacker_side": "ct",
+      "victim": "王宇瑄",
+      "weapon": "awp",
+      "tick": 39921
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 8,
+    "winner_side": "ct",
+    "start_tick": 47181,
+    "end_tick": 51134,
+    "duration_sec": 61.77,
+    "kills": [
+      {
+        "tick": 48771,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": true
+      },
+      {
+        "tick": 50095,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 50599,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 50964,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 51072,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 51134,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "工藤真琴",
+      "attacker_side": "ct",
+      "victim": "我是保枪协会会长",
+      "weapon": "awp",
+      "tick": 48771
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 5,
+      "kills_in_clutch": 1,
+      "clutch_kills_ticks": [
+        51072
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 9,
+    "winner_side": "ct",
+    "start_tick": 51582,
+    "end_tick": 55624,
+    "duration_sec": 63.16,
+    "kills": [
+      {
+        "tick": 53509,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 53748,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 53846,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 53857,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "bizon",
+        "is_headshot": true
+      },
+      {
+        "tick": 54323,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "bizon",
+        "is_headshot": true
+      },
+      {
+        "tick": 54532,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": false
+      },
+      {
+        "tick": 54644,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 55624,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "别看我--",
+      "attacker_side": "ct",
+      "victim": "用户0311p7kUPWis",
+      "weapon": "ak47",
+      "tick": 53509
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 2,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 10,
+    "winner_side": "ct",
+    "start_tick": 56072,
+    "end_tick": 61356,
+    "duration_sec": 82.56,
+    "kills": [
+      {
+        "tick": 57333,
+        "attacker": "工藤真琴",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 58445,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 59619,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 59690,
+        "attacker": "别看我--",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 61214,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 61356,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "工藤真琴",
+      "attacker_side": "ct",
+      "victim": "王宇瑄",
+      "weapon": "awp",
+      "tick": 57333
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 5,
+      "kills_in_clutch": 1,
+      "clutch_kills_ticks": [
+        61214
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 11,
+    "winner_side": "t",
+    "start_tick": 61804,
+    "end_tick": 66897,
+    "duration_sec": 79.58,
+    "kills": [
+      {
+        "tick": 63439,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "bizon",
+        "is_headshot": false
+      },
+      {
+        "tick": 64683,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 65080,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 65403,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "ct",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 65403,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 65536,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "bizon",
+        "is_headshot": false
+      },
+      {
+        "tick": 66320,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "bizon",
+        "is_headshot": false
+      },
+      {
+        "tick": 66897,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "glock",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0131wut1gIhX",
+      "attacker_side": "t",
+      "victim": "别看我--",
+      "weapon": "bizon",
+      "tick": 63439
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 2,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 12,
+    "winner_side": "t",
+    "start_tick": 67345,
+    "end_tick": 72318,
+    "duration_sec": 77.7,
+    "kills": [
+      {
+        "tick": 69065,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "工藤真琴",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 69307,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "别看我--",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 69370,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "t",
+        "victim": "谁是幼稚大王",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 69633,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "ct",
+        "victim": "说人多以为有我丶",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 70234,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "ct",
+        "victim": "我是保枪协会会长",
+        "victim_side": "t",
+        "weapon": "scar20",
+        "is_headshot": false
+      },
+      {
+        "tick": 72204,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "t",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 72318,
+        "attacker": "王宇瑄",
+        "attacker_side": "t",
+        "victim": "小呆呆大将军",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0311p7kUPWis",
+      "attacker_side": "t",
+      "victim": "工藤真琴",
+      "weapon": "ak47",
+      "tick": 69065
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 13,
+    "winner_side": "ct",
+    "start_tick": 72862,
+    "end_tick": 77554,
+    "duration_sec": 73.31,
+    "kills": [
+      {
+        "tick": 75793,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": null,
+        "victim_side": null,
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 76335,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 76569,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 76742,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 76753,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": null,
+      "weapon": "usp_silencer",
+      "tick": 75793
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 5,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 14,
+    "winner_side": "t",
+    "start_tick": 78002,
+    "end_tick": 84096,
+    "duration_sec": 95.22,
+    "kills": [
+      {
+        "tick": 82008,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": null,
+        "victim_side": null,
+        "weapon": "inferno",
+        "is_headshot": false
+      },
+      {
+        "tick": 82716,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      },
+      {
+        "tick": 83372,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": false
+      },
+      {
+        "tick": 83426,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": true
+      },
+      {
+        "tick": 83701,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "bizon",
+        "is_headshot": false
+      },
+      {
+        "tick": 83788,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "mac10",
+        "is_headshot": false
+      },
+      {
+        "tick": 84096,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "sg556",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "小呆呆大将军",
+      "attacker_side": "t",
+      "victim": null,
+      "weapon": "inferno",
+      "tick": 82008
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 15,
+    "winner_side": "t",
+    "start_tick": 84544,
+    "end_tick": 90875,
+    "duration_sec": 98.92,
+    "kills": [
+      {
+        "tick": 86478,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "fiveseven",
+        "is_headshot": true
+      },
+      {
+        "tick": 86842,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 87391,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 87766,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 88047,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "usp_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 90799,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "world",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0311p7kUPWis",
+      "attacker_side": "ct",
+      "victim": "谁是幼稚大王",
+      "weapon": "fiveseven",
+      "tick": 86478
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 1
+    }
+  },
+  {
+    "round_num": 16,
+    "winner_side": "t",
+    "start_tick": 91323,
+    "end_tick": 96897,
+    "duration_sec": 87.09,
+    "kills": [
+      {
+        "tick": 95353,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 95702,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 95847,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "m4a1",
+        "is_headshot": true
+      },
+      {
+        "tick": 96491,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 96695,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "sg556",
+        "is_headshot": false
+      },
+      {
+        "tick": 96897,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": "别看我--",
+      "weapon": "ak47",
+      "tick": 95353
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 17,
+    "winner_side": "ct",
+    "start_tick": 97345,
+    "end_tick": 102497,
+    "duration_sec": 80.5,
+    "kills": [
+      {
+        "tick": 99098,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "fiveseven",
+        "is_headshot": true
+      },
+      {
+        "tick": 99544,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 99955,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 100869,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 101440,
+        "attacker": "我是保枪协会会长",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "famas",
+        "is_headshot": true
+      },
+      {
+        "tick": 101675,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0311p7kUPWis",
+      "attacker_side": "ct",
+      "victim": "谁是幼稚大王",
+      "weapon": "fiveseven",
+      "tick": 99098
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 18,
+    "winner_side": "t",
+    "start_tick": 102945,
+    "end_tick": 108444,
+    "duration_sec": 85.92,
+    "kills": [
+      {
+        "tick": 106376,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": null,
+        "victim_side": null,
+        "weapon": "bizon",
+        "is_headshot": true
+      },
+      {
+        "tick": 106454,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 106522,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 106546,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 106809,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 106855,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 108444,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0131wut1gIhX",
+      "attacker_side": "ct",
+      "victim": null,
+      "weapon": "bizon",
+      "tick": 106376
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 4,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 19,
+    "winner_side": "ct",
+    "start_tick": 108892,
+    "end_tick": 116391,
+    "duration_sec": 117.17,
+    "kills": [
+      {
+        "tick": 111446,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 112793,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 113884,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 114288,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 114566,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 114646,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 114975,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": true
+      },
+      {
+        "tick": 115353,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": "用户0729UipWZUAK",
+      "weapon": "m4a1_silencer",
+      "tick": 111446
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 2,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 4
+    }
+  },
+  {
+    "round_num": 20,
+    "winner_side": "ct",
+    "start_tick": 116839,
+    "end_tick": 124013,
+    "duration_sec": 112.09,
+    "kills": [
+      {
+        "tick": 119420,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 119644,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "awp",
+        "is_headshot": false
+      },
+      {
+        "tick": 120737,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "bizon",
+        "is_headshot": false
+      },
+      {
+        "tick": 120886,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 121356,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 121568,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 121671,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 122227,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 124013,
+        "attacker": "王宇瑄",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": "别看我--",
+      "weapon": "awp",
+      "tick": 119420
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 2,
+      "clutch_kills_ticks": [
+        121671,
+        122227
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 21,
+    "winner_side": "t",
+    "start_tick": 124461,
+    "end_tick": 131922,
+    "duration_sec": 116.58,
+    "kills": [
+      {
+        "tick": 126991,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 127196,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 128128,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 128640,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 129844,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": false
+      },
+      {
+        "tick": 131175,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "用户0311p7kUPWis",
+      "attacker_side": "ct",
+      "victim": "别看我--",
+      "weapon": "m4a1",
+      "tick": 126991
+    },
+    "clutch": null,
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 3
+    }
+  },
+  {
+    "round_num": 22,
+    "winner_side": "t",
+    "start_tick": 132370,
+    "end_tick": 140302,
+    "duration_sec": 123.94,
+    "kills": [
+      {
+        "tick": 134075,
+        "attacker": "谁是幼稚大王",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "mp7",
+        "is_headshot": false
+      },
+      {
+        "tick": 136323,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": false
+      },
+      {
+        "tick": 136840,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 137226,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": true
+      },
+      {
+        "tick": 137539,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 137634,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 137840,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "deagle",
+        "is_headshot": true
+      },
+      {
+        "tick": 139988,
+        "attacker": "用户0131wut1gIhX",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "deagle",
+        "is_headshot": true
+      },
+      {
+        "tick": 140302,
+        "attacker": "小呆呆大将军",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "谁是幼稚大王",
+      "attacker_side": "t",
+      "victim": "我是保枪协会会长",
+      "weapon": "mp7",
+      "tick": 134075
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 2,
+      "clutch_kills_ticks": [
+        137840,
+        139988
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": false,
+      "multi_kill_in_round": 2
+    }
+  },
+  {
+    "round_num": 23,
+    "winner_side": "ct",
+    "start_tick": 140750,
+    "end_tick": 144697,
+    "duration_sec": 61.67,
+    "kills": [
+      {
+        "tick": 142907,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "m4a1_silencer",
+        "is_headshot": true
+      },
+      {
+        "tick": 143195,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 143394,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "别看我--",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 143407,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 144697,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "m4a1",
+        "is_headshot": true
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": "小呆呆大将军",
+      "weapon": "m4a1_silencer",
+      "tick": 142907
+    },
+    "clutch": {
+      "player_side": "t",
+      "enemies_at_start": 5,
+      "kills_in_clutch": 0,
+      "clutch_kills_ticks": []
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 4
+    }
+  },
+  {
+    "round_num": 24,
+    "winner_side": "t",
+    "start_tick": 145145,
+    "end_tick": 153062,
+    "duration_sec": 123.7,
+    "kills": [
+      {
+        "tick": 148507,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 149208,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "用户0131wut1gIhX",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 149413,
+        "attacker": "用户0729UipWZUAK",
+        "attacker_side": "t",
+        "victim": "我是保枪协会会长",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 150349,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "王宇瑄",
+        "victim_side": "ct",
+        "weapon": "galilar",
+        "is_headshot": false
+      },
+      {
+        "tick": 150970,
+        "attacker": "说人多以为有我丶",
+        "attacker_side": "ct",
+        "victim": "谁是幼稚大王",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 151199,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "说人多以为有我丶",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 151562,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "用户0729UipWZUAK",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": true
+      },
+      {
+        "tick": 152428,
+        "attacker": "用户0311p7kUPWis",
+        "attacker_side": "ct",
+        "victim": "小呆呆大将军",
+        "victim_side": "t",
+        "weapon": "ak47",
+        "is_headshot": false
+      },
+      {
+        "tick": 153062,
+        "attacker": "别看我--",
+        "attacker_side": "t",
+        "victim": "用户0311p7kUPWis",
+        "victim_side": "ct",
+        "weapon": "ak47",
+        "is_headshot": false
+      }
+    ],
+    "first_kill": {
+      "attacker": "说人多以为有我丶",
+      "attacker_side": "ct",
+      "victim": "谁是幼稚大王",
+      "weapon": "ak47",
+      "tick": 148507
+    },
+    "clutch": {
+      "player_side": "ct",
+      "enemies_at_start": 3,
+      "kills_in_clutch": 2,
+      "clutch_kills_ticks": [
+        151562,
+        152428
+      ]
+    },
+    "feature_flags": {
+      "is_ace": false,
+      "is_clutch_win": false,
+      "is_opening_kill_headshot": true,
+      "multi_kill_in_round": 3
+    }
+  }
+]
