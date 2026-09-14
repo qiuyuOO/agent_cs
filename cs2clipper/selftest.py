@@ -2347,6 +2347,63 @@ def test_web(c: Check, *, full: bool = True) -> None:
 
     c("hidden 元素真的会隐藏", hidden_elements_really_hide)
 
+    def frontend_runs_without_top_level_error():
+        """用 node + DOM 桩把 app.js **真执行**一遍.
+
+        为什么必须真跑: index.html 用的是普通 <script> (没有 defer)。普通脚本
+        一旦顶层抛出未捕获异常, 就从那一行起整体中断 —— 排在后面的
+        addEventListener 全部不会绑定, 症状正是"某个按钮怎么点都没反应",
+        而页面看起来一切正常。选择器/接口路径的静态检查抓不到这种问题
+        (选择器全都对, 坏的是执行顺序)。
+
+        真实缺陷: `$('#btn-demo-refresh')` 等一批绑定排在前面, 任何一行抛错
+        都会让后面的 #modal-close 永远不绑 —— 用户点了没反应。
+        脚本 tools/dev/domrun.js 会: 记录顶层异常、检查关键控件是否都绑上了
+        监听器、模拟点击关闭并断言 modal 真的被隐藏。
+        """
+        import shutil
+        import subprocess
+        node = shutil.which("node")
+        script = config.ROOT / "tools" / "dev" / "domrun.js"
+        if not node or not script.is_file():
+            return "跳过 (没有 node 或缺少 tools/dev/domrun.js)"
+        r = subprocess.run(
+            [node, str(script)], cwd=str(config.ROOT),
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+        )
+        out = (r.stdout or "") + (r.stderr or "")
+        is_true(r.returncode == 0, "前端无头执行失败:\n" + out[-1500:])
+        tail = [ln.strip() for ln in out.splitlines()
+                if "未绑定" in ln or "触发监听器" in ln or "关闭生效" in ln]
+        return " | ".join(tail[-3:]) or "app.js 无头执行通过"
+
+    c("前端可无头执行且控件都绑上了", frontend_runs_without_top_level_error)
+
+    def assets_are_cache_busted():
+        """静态资源 URL 必须带版本号.
+
+        真实缺陷: 前端资源原来是固定路径 `/static/app.js`。浏览器对静态资源
+        缓存优先级很高, 改了代码后普通刷新仍可能继续用旧文件 —— 表现就是
+        "你改了我这儿还是老毛病", 用户被迫手动 Ctrl+F5。
+        """
+        import re
+        app = webapp.create_app()
+        # 直接调用 index handler 拿 HTML
+        idx = next(r for r in app.routes if getattr(r, "path", "") == "/")
+        import asyncio
+        resp = asyncio.get_event_loop_policy().new_event_loop().run_until_complete(
+            idx.endpoint(None))
+        html = resp.body.decode("utf-8")
+        v_js = re.search(r'src="/static/app\.js\?v=(\d+)"', html)
+        v_css = re.search(r'href="/static/app\.css\?v=(\d+)"', html)
+        is_true(bool(v_js), "app.js 没有带版本号 (浏览器可能继续用旧缓存)")
+        is_true(bool(v_css), "app.css 没有带版本号")
+        is_true(resp.headers.get("cache-control") == "no-store",
+                f"页面本身缺少 no-store: {resp.headers.get('cache-control')}")
+        return f"app.js?v={v_js.group(1) if v_js else '-'}, 页面 no-store"
+
+    c("静态资源带版本号避免旧缓存", assets_are_cache_busted)
+
     if not full:
         return
 

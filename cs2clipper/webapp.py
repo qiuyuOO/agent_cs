@@ -685,12 +685,44 @@ def _bool(raw: Any) -> bool | None:
     raise ValueError(f"无法解析布尔值: {raw!r}")
 
 
+_INDEX_CACHE: dict[str, Any] = {"key": None, "html": None}
+
+
+def _asset_version() -> str:
+    """前端资源版本号 = css/js 的最大 mtime.
+
+    为什么需要它: 前端资源原本用固定路径 `/static/app.js`。浏览器对静态资源
+    的缓存优先级很高, 改了代码之后普通刷新仍可能继续用旧文件 —— 表现就是
+    "按你说的改了, 但我这儿还是老毛病"。把 mtime 拼进 URL, 文件一变 URL 就变,
+    浏览器必然重新下载; 开发时也不用手动 Ctrl+F5。
+    """
+    stamp = 0.0
+    for f in ("app.css", "app.js"):
+        p = STATIC_DIR / f
+        try:
+            stamp = max(stamp, p.stat().st_mtime)
+        except OSError:
+            continue
+    return str(int(stamp))
+
+
 async def index(request):
     page = STATIC_DIR / "index.html"
     if not page.is_file():
         return HTMLResponse("<h1>缺少前端资源 cs2clipper/web/index.html</h1>",
                             status_code=500)
-    return HTMLResponse(page.read_text(encoding="utf-8"))
+    version = _asset_version()
+    cache_key = f"{page.stat().st_mtime}:{version}"
+    if _INDEX_CACHE.get("key") != cache_key:
+        html = page.read_text(encoding="utf-8")
+        # 只替换静态资源的 URL, 不动其它内容
+        html = html.replace("/static/app.css", f"/static/app.css?v={version}")
+        html = html.replace("/static/app.js", f"/static/app.js?v={version}")
+        _INDEX_CACHE.update(key=cache_key, html=html)
+    return HTMLResponse(_INDEX_CACHE["html"], headers={
+        # 页面本身不缓存, 保证版本号一定是最新的
+        "Cache-Control": "no-store",
+    })
 
 
 async def favicon(request):
