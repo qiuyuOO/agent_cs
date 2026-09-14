@@ -1,4 +1,4 @@
-﻿"""完整自检 —— 单元级 + 集成级 + 端到端.
+"""完整自检 —— 单元级 + 集成级 + 端到端.
 
 用法:
     # 单元 + 集成 (约 1 分钟, 不需要 API key)
@@ -2539,6 +2539,7 @@ def test_hlae(c: Check) -> None:
     (会一直等在那儿)。所以这里覆盖游戏以外的全部环节: 体检是否健壮、计划与脚本
     生成是否正确、录完之后能不能把素材接回流水线。
     """
+    import re
     import shutil
 
     from PIL import Image
@@ -2566,7 +2567,16 @@ def test_hlae(c: Check) -> None:
                     f"问题描述没说清缺什么: {bad.problems}")
         finally:
             H.hlae_dir = orig                                        # type: ignore
-        return (f"HLAE={d['info']['hlae_version'] or '未装'} "
+        # 版本号必须是真正的 release 版本, 不能是 XML 声明的 "1.0"。
+        # 真实缺陷: 一开始用宽泛的 `version="..."` 搜 changelog.xml, 命中的是
+        # 第一行 `<?xml version="1.0"?>` —— 体检显示一个**假版本号**, 排查时会
+        # 让人以为装的是老版本 (实测显示 1.0, 实际 2.192.2)。
+        ver = d["info"].get("hlae_version") or ""
+        if ver:
+            is_true(ver != "1.0", f"版本号取自 XML 声明, 是假的: {ver}")
+            is_true(re.match(r"^\d+\.\d+", ver) is not None,
+                    f"版本号形态不对: {ver!r}")
+        return (f"HLAE={ver or '未装'} "
                 f"problems={len(d['problems'])} warnings={len(d['warnings'])}")
 
     c("HLAE 环境体检健壮", preflight_shape)

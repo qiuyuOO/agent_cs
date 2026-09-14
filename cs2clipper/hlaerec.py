@@ -83,16 +83,26 @@ def hook_dll() -> Path:
 
 
 def hlae_version() -> str:
-    """从 changelog.xml 里读出版本号 (读不到就返回空)."""
+    """从 changelog.xml 里读出版本号 (读不到就返回空).
+
+    注意**不能**用宽泛的 `version="..."` 去搜: 文件第一行是
+    `<?xml version="1.0" ...?>`, 那样搜出来永远是 "1.0" —— 体检会显示一个
+    假版本号 (实测踩到)。真正的版本在 `<release>` 里的 `<version>` 元素。
+    """
     for name in ("changelog.xml", "x64/AfxHookSource2_changelog.xml"):
         p = hlae_dir() / name
         if not p.is_file():
             continue
         try:
-            text = p.read_text(encoding="utf-8", errors="replace")[:4000]
+            text = p.read_text(encoding="utf-8", errors="replace")[:8000]
         except OSError:
             continue
-        m = re.search(r'version="([^"]+)"', text)
+        # 元素形式 (HLAE 的 changelog 用的就是这个)
+        m = re.search(r"<version>\s*([^<\s]+)\s*</version>", text)
+        if m:
+            return m.group(1)
+        # 退路: 属性形式, 但要求属性名以 version 结尾 (排除 xml 声明的 version)
+        m = re.search(r'\b(?:release|app|build)[-_]?version="([^"]+)"', text, re.I)
         if m:
             return m.group(1)
     return ""
