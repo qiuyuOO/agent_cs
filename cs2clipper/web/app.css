@@ -15,6 +15,17 @@
 
 * { box-sizing: border-box; }
 
+/* hidden 属性必须真的隐藏 —— 不能依赖浏览器默认样式。
+   浏览器 UA 样式里的 [hidden] { display: none } 会被**任何**作者样式里的
+   display 覆盖, 例如 `.modal { display: grid }`。于是 JS 里设了
+   `el.hidden = true`、属性也确实变成 true 了, 元素却照样显示 ——
+   "关闭按钮点了没反应" 就是这么来的 (弹窗一直盖在页面上)。
+   用 !important 把这条路彻底堵死, 以后新加组件也不会再踩。 */
+[hidden] { display: none !important; }
+
+/* JS 里的 show() 会同步这个 class, 让"关没关"在 DOM 上可见 */
+.is-hidden { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);

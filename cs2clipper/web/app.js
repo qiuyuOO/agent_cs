@@ -112,10 +112,25 @@ async function loadDemos() {
 }
 $('#btn-demo-refresh').addEventListener('click', loadDemos);
 
-/* --- 音乐浏览 --- */
+/* --- 音乐浏览弹窗 --- */
 let BROWSE_DIR = null;
+
+/** 统一的显隐入口.
+ *
+ * 只设 `el.hidden` 是不够可靠的坑: 浏览器 UA 样式里的 `[hidden]{display:none}`
+ * 会被作者样式里的 display 覆盖 (`.modal{display:grid}`), 结果属性设上了、
+ * 元素却照样显示 —— 表现为"关闭按钮点了没反应"。CSS 里已用
+ * `[hidden]{display:none!important}` 兜住, 这里再同步一个 class,
+ * 让"到底关没关"在 DOM 上看得见, 也便于静态检查。
+ */
+function show(el, on) {
+  if (!el) return;
+  el.hidden = !on;
+  el.classList.toggle('is-hidden', !on);
+}
+
 async function openBrowser(dir) {
-  $('#modal-music').hidden = false;
+  show($('#modal-music'), true);
   await browse(dir || null);
 }
 async function browse(dir) {
@@ -134,14 +149,22 @@ async function browse(dir) {
     $$('#browse-files [data-file]').forEach((el) => el.addEventListener('click', () => {
       $('#music-path').value = el.dataset.file;
       localStorage.setItem('lastMusic', el.dataset.file);
-      $('#modal-music').hidden = true;
+      closeBrowser();
       validateInputs();
     }));
   } catch (e) { toast('目录读取失败: ' + e.message, true); }
 }
+function closeBrowser() { show($('#modal-music'), false); }
+
 $('#btn-browse-music').addEventListener('click', () => openBrowser(BROWSE_DIR));
-$('#modal-close').addEventListener('click', () => { $('#modal-music').hidden = true; });
-$('#modal-music').addEventListener('click', (e) => { if (e.target.id === 'modal-music') $('#modal-music').hidden = true; });
+$('#modal-close').addEventListener('click', closeBrowser);
+$('#modal-music').addEventListener('click', (e) => {
+  // 点遮罩空白处也关 (点弹窗本体内部不关)
+  if (e.target.id === 'modal-music') closeBrowser();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('#modal-music').hidden) closeBrowser();
+});
 $('#browse-go').addEventListener('click', () => browse($('#browse-dir').value.trim()));
 $('#browse-up').addEventListener('click', () => { if (BROWSE_DIR) browse(BROWSE_DIR.replace(/[\\/][^\\/]+$/, '')); });
 $('#music-path').addEventListener('change', () => {
@@ -183,8 +206,8 @@ $('#btn-run').addEventListener('click', async () => {
   if (!params.music_path) { toast('先选一首音乐', true); return; }
   $('#btn-run').disabled = true;
   $('#progress-card').hidden = false;
-  $('#result-card').hidden = true;
-  $('#timeline-card').hidden = true;
+  show($('#result-card'), false);
+  show($('#timeline-card'), false);
   $('#log').innerHTML = '';
   $('#bar').style.width = '0%';
   $('#percent').textContent = '0%';
@@ -262,7 +285,7 @@ async function finishJob(jobId) {
     else if (r.job.status === 'cancelled') toast('已停止（已完成的片段仍已出片）');
     else toast('出片完成');
     if (r.job.video_path && r.job.status !== 'error') {
-      $('#result-card').hidden = false;
+      show($('#result-card'), true);
       await loadResult(r.job);
     }
   } catch (e) { /* 忽略 */ }
@@ -298,7 +321,7 @@ async function loadTimeline(outDir) {
     STATE.demo = await api('/api/artifact?path=' + encodeURIComponent(outDir + '/demo_analysis.json'));
     STATE.music = await api('/api/artifact?path=' + encodeURIComponent(outDir + '/music_analysis.json'));
   } catch (e) { toast('读取产物 JSON 失败: ' + e.message, true); return; }
-  $('#timeline-card').hidden = false;
+  show($('#timeline-card'), true);
   drawTimeline();
   drawSegments();
   drawCards();
@@ -528,11 +551,11 @@ async function loadRuns() {
   } catch (e) { toast('读取历史失败: ' + e.message, true); }
 }
 $('#btn-runs-reload').addEventListener('click', loadRuns);
-$('#btn-run-detail-close').addEventListener('click', () => { $('#run-detail').hidden = true; });
+$('#btn-run-detail-close').addEventListener('click', () => { show($('#run-detail'), false); });
 
 async function showRun(run) {
   if (!run) return;
-  $('#run-detail').hidden = false;
+  show($('#run-detail'), true);
   $('#run-detail-title').textContent = `运行 #${run.id} · ${run.map_name || ''} ${run.aspect || ''}`;
   let clips = [];
   try { clips = (await api(`/api/runs/${run.id}/clips`)).clips; } catch (e) { /* 忽略 */ }

@@ -2283,6 +2283,70 @@ def test_web(c: Check, *, full: bool = True) -> None:
 
     c("前端选择器与接口路径有效", frontend_static_consistency)
 
+    def hidden_elements_really_hide():
+        """带 hidden 属性的元素必须真的被隐藏.
+
+        真实缺陷 (用户报"关闭按钮点了没反应"): 浏览器 UA 样式里的
+        `[hidden] { display: none }` 会被**任何**作者样式里的 display 覆盖,
+        例如 `.modal { display: grid }`。JS 里 `el.hidden = true` 设上了、
+        属性也确实变成 true, 元素却照样显示 —— 弹窗一直盖在页面上。
+
+        这里逐条比对: index.html 里每个带 hidden 的元素 (以及 JS 里显隐过的
+        id), 它的 class 在 CSS 里**不能**有 display 声明, 除非 CSS 里有
+        `[hidden]` 的 !important 兜底规则。
+        """
+        import re
+        static = webapp.STATIC_DIR
+        html = (static / "index.html").read_text(encoding="utf-8")
+        js = (static / "app.js").read_text(encoding="utf-8")
+        css = (static / "app.css").read_text(encoding="utf-8")
+
+        guarded = bool(re.search(r"\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important", css))
+        is_true(guarded, "CSS 里缺少 `[hidden] { display: none !important }` 兜底规则")
+
+        # CSS: class -> 是否声明了 display
+        display_cls = set()
+        for block in re.findall(r"([^{}]+)\{([^}]*)\}", css):
+            selectors, body = block
+            if "display" not in body:
+                continue
+            for sel in selectors.split(","):
+                for cls in re.findall(r"\.([A-Za-z][A-Za-z0-9_\-]*)", sel):
+                    display_cls.add(cls)
+
+        # 显隐目标: HTML 里带 hidden 的元素 + JS 里 show()/hidden 操作过的 id
+        targets: dict[str, set[str]] = {}
+        for tag in re.findall(r"<[^>]*\bhidden\b[^>]*>", html):
+            mid = re.search(r'id="([^"]+)"', tag)
+            mcl = re.search(r'class="([^"]+)"', tag)
+            if mid:
+                targets[mid.group(1)] = set((mcl.group(1) if mcl else "").split())
+        for cid in set(re.findall(r"""show\(\s*\$\('#([A-Za-z0-9_\-]+)'\)""", js)) | \
+                set(re.findall(r"""\$\('#([A-Za-z0-9_\-]+)'\)\.hidden""", js)) | \
+                set(re.findall(r"""show\(\s*\$\('#([A-Za-z0-9_\-]+)'\)""", js)):
+            # 从 HTML 里找这个 id 的 class
+            m = re.search(rf'<[^>]*id="{re.escape(cid)}"[^>]*>', html)
+            if m:
+                mcl = re.search(r'class="([^"]+)"', m.group(0))
+                targets.setdefault(cid, set((mcl.group(1) if mcl else "").split()))
+
+        is_true(len(targets) >= 4, f"没找到显隐目标, 用例失效: {sorted(targets)}")
+        broken = sorted(
+            f"#{cid} (class={sorted(cl)} 里有 display 声明)"
+            for cid, cl in targets.items() if cl & display_cls
+        )
+        ok_without_guard = sorted(
+            cid for cid, cl in targets.items() if not (cl & display_cls)
+        )
+        # 兜底规则存在时, 即使 class 带 display 也是安全的
+        is_true(guard_ok := (not broken or guarded),
+                f"这些元素设了 hidden 也隐藏不掉: {broken}")
+        return (f"{len(targets)} 个显隐目标; 需兜底规则的 {len(broken)} 个 "
+                f"({broken}); 兜底规则={'有' if guarded else '无'}; "
+                f"本身安全的 {len(ok_without_guard)} 个")
+
+    c("hidden 元素真的会隐藏", hidden_elements_really_hide)
+
     if not full:
         return
 
