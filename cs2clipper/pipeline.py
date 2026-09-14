@@ -387,7 +387,10 @@ def node_render_hlae(state: PipelineState) -> dict[str, Any]:
     plan_path = hlaerec.write_plan(plan, out_dir / "hlae_plan.json")
     scripts = hlaerec.write_cs2_scripts(
         state["demo_path"], plan, output_dir=rec_dir, fps=fps,
+        fallback_dir=out_dir / "cs2_cfg",
     )
+    for n in scripts.get("notes") or []:
+        bus.log(f"[warn] {n}", stage="render")
 
     found = hlaerec.discover_recordings(rec_dir)
     if not found["frame_dirs"] and not found["videos"]:

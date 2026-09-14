@@ -2530,6 +2530,237 @@ def test_web(c: Check, *, full: bool = True) -> None:
 
 
 # ==================================================================
+# 9. HLAE 游戏内录制 (画面源 = hlae)
+# ==================================================================
+def test_hlae(c: Check) -> None:
+    """HLAE 录制链路中**不需要启动游戏**就能验证的部分.
+
+    真实验证"HLAE 注入 CS2 + 录到画面"需要 GUI、需要手动启动游戏, 自检里做不到
+    (会一直等在那儿)。所以这里覆盖游戏以外的全部环节: 体检是否健壮、计划与脚本
+    生成是否正确、录完之后能不能把素材接回流水线。
+    """
+    import shutil
+
+    from PIL import Image
+
+    from . import compose
+    from . import hlaerec as H
+
+    def preflight_shape():
+        """体检必须**不抛异常**地返回结构化结果 (环境缺啥都只算 problems)."""
+        pf = H.preflight(check_running=False)
+        d = pf.to_dict()
+        for key in ("ok", "problems", "warnings", "info"):
+            is_true(key in d, f"体检结果缺少 {key}")
+        is_true(isinstance(d["problems"], list), "problems 不是列表")
+        for key in ("hlae_dir", "hlae_version", "cs2_exe", "hlae_config"):
+            is_true(key in d["info"], f"体检缺少 info.{key}")
+        is_true("体检结果" in pf.text(), "体检文本渲染异常")
+        # 找不到 HLAE 时必须是 problems 而**不是**抛异常
+        orig = H.hlae_dir
+        try:
+            H.hlae_dir = lambda: config.ROOT / "_no_such_hlae_dir"   # type: ignore
+            bad = H.preflight(check_running=False)
+            is_true(not bad.ok and bad.problems, "HLAE 缺失时体检竟然通过")
+            is_true(any("HLAE.exe" in p for p in bad.problems),
+                    f"问题描述没说清缺什么: {bad.problems}")
+        finally:
+            H.hlae_dir = orig                                        # type: ignore
+        return (f"HLAE={d['info']['hlae_version'] or '未装'} "
+                f"problems={len(d['problems'])} warnings={len(d['warnings'])}")
+
+    c("HLAE 环境体检健壮", preflight_shape)
+
+    def cs2_pick_largest_install():
+        """多份 CS2 安装时必须挑**体积最大**的那份 (空壳安装真实存在)."""
+        exe = H.find_cs2_exe()
+        if exe is None:
+            return "本机没装 CS2, 跳过"
+        root = exe.parents[3]
+        is_true(exe.is_file(), f"选中的 cs2.exe 不存在: {exe}")
+        size_gb = sum(f.stat().st_size for f in root.rglob("*") if f.is_file()) / 2**30
+        is_true(size_gb > 1, f"选中了疑似空壳安装 ({size_gb:.1f} GB): {root}")
+        return f"{root.name} ({size_gb:.1f} GB)"
+
+    c("CS2 安装按体积择优", cs2_pick_largest_install)
+
+    def plan_math():
+        """EDL → 录制计划的时间换算与变速比必须自洽."""
+        class Clip:
+            def __init__(self, i, s, e, out, speed):
+                self.index, self.src_start_tick, self.src_end_tick = i, s, e
+                self.out_start, self.out_end = 0.0, out
+                self.duration = out          # EDLClip.duration 是 out_end-out_start
+                self.highlight_id, self.speed = f"c{i}", speed
+                self.music_segment, self.effects = 0, {}
+
+        class Card:
+            def __init__(self, cid):
+                self.id, self.player, self.round_num = cid, "P", 1
+
+        tps = config.DEMO_TICKRATE
+        clips = [
+            Clip(0, tps * 100, tps * 102, 2.0, 1.0),    # 2s 素材 / 2s 成片 -> 1.0
+            Clip(1, tps * 200, tps * 202, 4.0, 2.0),    # 2s 素材 / 4s 成片 -> 0.5
+            Clip(2, tps * 300, tps * 304, 2.0, 1.0),    # 4s 素材 / 2s 成片 -> 2.0
+        ]
+        edl = type("EDL", (), {"clips": clips})()
+        cards = [Card(f"c{i}") for i in range(3)]
+        plan = H.plan_from_edl(edl, cards)
+        is_true(len(plan) == 3, f"计划段数不对: {len(plan)}")
+        approx(plan[0].demo_start_sec, 100.0, 1e-6)
+        approx(plan[0].demo_end_sec, 102.0, 1e-6)
+        approx(plan[0].realtime_factor, 1.0, 1e-6)
+        approx(plan[1].realtime_factor, 0.5, 1e-6)
+        approx(plan[2].realtime_factor, 2.0, 1e-6)
+        is_true(plan[0].demo_span > 0, "demo 跨度为 0")
+        names = [s.name for s in plan]
+        is_true(len(set(names)) == len(names), f"片段名重复: {names}")
+        is_true(isinstance(plan[0].to_dict(), dict), "to_dict 不是 dict")
+        return f"3 段: realtime {[round(s.realtime_factor, 2) for s in plan]}"
+
+    c("录制计划时间换算正确", plan_math)
+
+    def scripts_are_safe():
+        """生成的 CS2 脚本必须满足几条关键不变量.
+
+        最重要的是**每段独立的 record name**: 第一版只在开头设一次名字, 结果
+        各段输出落到同一目录互相覆盖, 最后只剩最后一段。
+        """
+        plan = [
+            H.RecSegment(index=i, highlight_id=f"c{i}", player=f"P{i}",
+                         round_num=i + 1, demo_start_sec=10.0 * i,
+                         demo_end_sec=10.0 * i + 2.5, out_duration=2.5,
+                         speed=1.0, name=f"clip_{i + 1:03d}")
+            for i in range(4)
+        ]
+        boot, stop, clips = H.build_cs2_config(
+            plan, demo_path=r"D:\x\a.dem", output_dir=r"E:\out\rec", fps=60)
+        is_true(len(clips) == 4, f"片段脚本数量不对: {len(clips)}")
+        is_true("playdemo" in boot, "引导脚本里没有 playdemo")
+        is_true("mirv_streams record fps 60" in boot, "引导脚本没设录制帧率")
+        is_true("bind F8" in boot, "引导脚本没绑停录键")
+        is_true("mirv_streams record end" in stop, "停录脚本没有 record end")
+
+        rec_names: list[str] = []
+        for name, text in clips:
+            is_true(name.endswith(".cfg"), f"片段脚本名不对: {name}")
+            is_true("mirv_streams record start" in text, f"{name} 没有 record start")
+            is_true("mirv_skip time to" in text, f"{name} 没有定位到片段起点")
+            for line in text.splitlines():
+                if line.startswith("mirv_streams record name"):
+                    rec_names.append(line)
+        is_true(len(rec_names) == len(set(rec_names)),
+                f"各段 record name 有重复 -> 输出会互相覆盖: {rec_names}")
+        for i, (_, text) in enumerate(clips):
+            want = f"mirv_skip time to {10.0 * i:.3f}"
+            is_true(want in text, f"片段 {i + 1} 没跳到自己的起点 (期望 {want})")
+
+        # 玩家名里的引号/分号必须被转义, 否则会破坏 cfg (用户名可以随便起)
+        weird = [H.RecSegment(index=0, highlight_id="c", player='A"; quit; "B',
+                              round_num=1, demo_start_sec=1.0, demo_end_sec=2.0,
+                              out_duration=1.0, speed=1.0, name="clip_001")]
+        _, _, wclips = H.build_cs2_config(
+            weird, demo_path="d", output_dir="o", fps=60)
+        spec = [l for l in wclips[0][1].splitlines() if l.startswith("spec_player")]
+        is_true(len(spec) == 1, f"spec_player 行数异常: {spec}")
+        is_true(spec[0].count('"') == 2, f"玩家名引号没转义: {spec[0]}")
+        return f"{len(clips)} 个片段脚本, record name 全唯一, 恶意玩家名已转义"
+
+    c("录制脚本不变量", scripts_are_safe)
+
+    def frames_to_exact_duration():
+        """帧序列 → 精确时长片段 (与 compose.finalize_clip 的契约一致).
+
+        这是"录制素材能接回流水线"的关键: 无论录了多少帧, 产出片段的时长必须
+        **严格等于** EDL 声明的时长, 否则视频轨与音乐轨会对不上。
+        """
+        tmp = config.WORK_DIR / "_hlae_frames"
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True, exist_ok=True)
+        try:
+            for i in range(30):      # 30 帧 @60fps = 0.5s 素材
+                Image.new("RGB", (160, 90), (i * 8 % 256, 40, 90)).save(
+                    tmp / f"frame_{i:08d}.png")
+            out = config.WORK_DIR / "_hlae_clip_test.mp4"
+            H.frames_to_clip(tmp, out, fps=60, target_duration=2.0, size=(160, 90))
+            dur = compose.probe_duration(out)
+            is_true(abs(dur - 2.0) < 0.15,
+                    f"产出时长 {dur:.2f}s 与目标 2.0s 不符 (慢放/拉伸没生效?)")
+            out.unlink(missing_ok=True)
+            return f"30 帧(0.5s) -> 拉伸到 {dur:.2f}s"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    c("帧序列规整到精确时长", frames_to_exact_duration)
+
+    def missing_material_is_reported():
+        """录制素材缺失时必须**报出来**, 而不是静默少一段.
+
+        少了不说, 成片就会比音乐短一截而且没人知道为什么。
+        """
+        tmp = config.WORK_DIR / "_hlae_rec_probe"
+        shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True, exist_ok=True)
+        try:
+            empty = H.discover_recordings(tmp)
+            is_true(empty["exists"] and not empty["frame_dirs"],
+                    f"空目录探测结果异常: {empty}")
+            plan = [
+                H.RecSegment(index=0, highlight_id="a", player="P", round_num=1,
+                             demo_start_sec=0.0, demo_end_sec=1.0,
+                             out_duration=1.0, speed=1.0, name="clip_001"),
+                H.RecSegment(index=1, highlight_id="b", player="Q", round_num=2,
+                             demo_start_sec=2.0, demo_end_sec=3.0,
+                             out_duration=1.0, speed=1.0, name="clip_002"),
+            ]
+            items, notes = H.build_from_recordings(plan, tmp, tmp / "clips", fps=60)
+            is_true(items == [], f"没有素材却产出了片段: {items}")
+            is_true(len(notes) == 2, f"两段都缺素材, 却只报 {len(notes)} 条")
+            is_true(all("clip_00" in n for n in notes), f"说明里没带片段名: {notes}")
+            return f"空目录 -> 0 片段 + {len(notes)} 条说明"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    c("素材缺失会明确报出", missing_material_is_reported)
+
+    def pipeline_routing():
+        """record_source 必须真的把 render 分流到 HLAE 路径.
+
+        用"录制目录为空"这个必然状态做探针: HLAE 路径会明确报错并给出下一步,
+        而**不会**去画雷达帧。若分流没生效, 这里会一路渲染成功 —— 那说明开关
+        是假的。
+        """
+        from . import pipeline as P
+
+        track = config.WORK_DIR / "selftest_track.wav"
+        if not track.is_file():
+            from . import music as M
+            M.make_test_track(track)
+        out = config.WORK_DIR / "_hlae_route"
+        try:
+            P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
+                  use_llm=False, verbose=False, use_prefs=False, record=False,
+                  record_source="hlae")
+            raise AssertionError("record_source=hlae 却没有走 HLAE 路径")
+        except RuntimeError as e:
+            msg = str(e)
+            is_true("录制素材" in msg or "录制脚本" in msg,
+                    f"HLAE 路径的报错没说清下一步: {msg[:160]}")
+        # 未知取值必须被拒 (而不是静默当成 radar)
+        try:
+            P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
+                  use_llm=False, verbose=False, use_prefs=False, record=False,
+                  record_source="nonsense")
+            raise AssertionError("未知 record_source 未被拒绝")
+        except ValueError:
+            pass
+        return "hlae 分流生效, 未知取值被拒"
+
+    c("record_source 分流与校验", pipeline_routing)
+
+
+# ==================================================================
 # 汇总
 # ==================================================================
 def summarize() -> int:
@@ -2577,31 +2808,33 @@ def main(argv: list[str] | None = None) -> int:
     print(f"cs2clipper 自检   音乐={music.name}   e2e={args.e2e}   llm={args.llm}")
     print("=" * 78)
 
-    print("\n[1/8] 环境")
+    print("\n[1/10] 环境")
     test_environment(Check("环境"))
-    print("\n[2/8] 音乐分析")
+    print("\n[2/10] 音乐分析")
     test_music(Check("音乐分析"), Path(args.music) if args.music else None)
-    print("\n[3/8] demo 解析")
+    print("\n[3/10] demo 解析")
     test_demo(Check("demo"))
-    print("\n[4/8] 编排 (EDL)")
+    print("\n[4/10] 编排 (EDL)")
     test_planner(Check("编排"))
-    print("\n[5/8] 渲染")
+    print("\n[5/10] 渲染")
     test_render(Check("渲染"))
-    print("\n[6/8] 合成")
+    print("\n[6/10] 合成")
     test_compose(Check("合成"))
-    print("\n[7/9] 偏好存储")
+    print("\n[7/10] 偏好存储")
     test_store(Check("存储"))
-    print("\n[8/9] Web 界面")
+    print("\n[8/10] Web 界面")
     test_web(Check("Web"), full=not args.no_web)
+    print("\n[9/10] HLAE 游戏内录制")
+    test_hlae(Check("HLAE"))
 
     if args.e2e:
         aspects = [a.strip() for a in args.aspects.split(",") if a.strip()]
         modes = [False, True] if args.llm else [False]
         for use_llm in modes:
-            print(f"\n[9/9] 端到端 (llm={use_llm})")
+            print(f"\n[10/10] 端到端 (llm={use_llm})")
             test_e2e(Check(f"端到端 llm={use_llm}"), music, aspects, use_llm)
     else:
-        print("\n[9/9] 端到端  (跳过, 加 --e2e 启用)")
+        print("\n[10/10] 端到端  (跳过, 加 --e2e 启用)")
 
     return summarize()
 

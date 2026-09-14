@@ -112,6 +112,52 @@ async function loadDemos() {
 }
 $('#btn-demo-refresh').addEventListener('click', loadDemos);
 
+/* --- HLAE 游戏内录制: 体检 + 素材状态 --- */
+async function loadHlae() {
+  const box = $('#hlae-box');
+  const body = $('#hlae-body');
+  try {
+    const r = await api('/api/hlae/status');
+    const pf = r.preflight || {};
+    const info = pf.info || {};
+    const lines = [];
+    lines.push(`<div class="hlae-line ${pf.ok ? 'good' : 'bad'}">`
+      + `环境: ${pf.ok ? '就绪' : '有问题'}</div>`);
+    if (info.hlae_version) {
+      lines.push(`<div class="hlae-line">HLAE ${esc(info.hlae_version)} · `
+        + `cs2 ${info.cs2_size_gb ? info.cs2_size_gb + ' GB' : '未找到'}</div>`);
+    }
+    (pf.problems || []).forEach((p) => lines.push(`<div class="hlae-line bad">✗ ${esc(p)}</div>`));
+    (pf.warnings || []).forEach((w) => lines.push(`<div class="hlae-line warn">! ${esc(w)}</div>`));
+    if (r.has_material) {
+      const f = r.recordings || {};
+      lines.push(`<div class="hlae-line good">已录素材: `
+        + `${(f.frame_dirs || []).length} 个帧序列目录 / ${(f.videos || []).length} 个视频`
+        + `（共 ${f.total_frames || 0} 帧）→ 可以直接出片</div>`);
+    } else {
+      lines.push('<div class="hlae-line warn">还没有录制素材。点“开始出片”会先生成 '
+        + 'CS2 录制脚本，然后按提示在游戏里录一次。</div>');
+    }
+    lines.push(`<div class="hlae-line">录制输出目录: <span class="mono">${esc(r.record_dir)}</span></div>`);
+    body.innerHTML = lines.join('');
+  } catch (e) {
+    body.innerHTML = `<div class="hlae-line bad">体检失败: ${esc(e.message)}</div>`;
+  }
+  box.hidden = false;
+}
+$('#record_source').addEventListener('change', () => {
+  if ($('#record_source').value === 'hlae') loadHlae();
+  else $('#hlae-box').hidden = true;
+});
+$('#btn-hlae-refresh').addEventListener('click', loadHlae);
+$('#btn-hlae-setup').addEventListener('click', async () => {
+  try {
+    const r = await api('/api/hlae/setup', { method: 'POST' });
+    toast('已写入 HLAE 配置: ' + r.change);
+    loadHlae();
+  } catch (e) { toast('写入失败: ' + e.message, true); }
+});
+
 /* --- 音乐浏览弹窗 --- */
 let BROWSE_DIR = null;
 
@@ -195,6 +241,7 @@ function collectParams() {
     max_cards: num('#max_cards'),
     pacing: val('#pacing'),
     use_llm: llm === null ? null : llm === 'true',
+    record_source: val('#record_source'),
     out_dir: $('#out_dir').value.trim() || null,
     use_prefs: $('#use_prefs').checked,
     record: $('#record').checked,

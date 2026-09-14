@@ -207,6 +207,7 @@ class JobManager:
                 max_cards=p.get("max_cards"),
                 use_llm=p.get("use_llm"),
                 pacing=p.get("pacing"),
+                record_source=p.get("record_source"),
                 verbose=False,
                 use_prefs=bool(p.get("use_prefs", True)),
                 record=bool(p.get("record", True)),
@@ -290,7 +291,40 @@ async def api_meta(request):
         "music_dir": media.default_music_dir(),
         "busy": any(j.status in ("queued", "running") for j in JOBS.all()),
         "stats": store.stats(),
+        "record_source": str(prefs.get("record_source", "radar")),
     })
+
+
+async def api_hlae_status(request):
+    """HLAE 录制环境体检 + 已录素材情况 (给界面显示"能不能用游戏画面")."""
+    from . import hlaerec
+
+    pf = hlaerec.preflight()
+    rec_dir = hlaerec.record_output_dir()
+    found = hlaerec.discover_recordings(rec_dir)
+    return _json({
+        "ok": True,
+        "preflight": pf.to_dict(),
+        "text": pf.text(),
+        "record_dir": str(rec_dir),
+        "recordings": found,
+        "has_material": bool(found["frame_dirs"] or found["videos"]),
+        "hlae_exe": str(hlaerec.hlae_exe()),
+        "cs2_exe": str(hlaerec.find_cs2_exe() or ""),
+        "fps": hlaerec.hlae_capture_fps(),
+    })
+
+
+async def api_hlae_setup(request):
+    """把 cs2.exe 路径写进 HLAE 配置 (等价于 CLI 的 --hlae-setup)."""
+    from . import hlaerec
+
+    try:
+        cfg, note = hlaerec.set_hlae_cs2_exe()
+    except (FileNotFoundError, RuntimeError) as exc:
+        return _fail(str(exc))
+    return _json({"ok": True, "config": str(cfg), "change": note,
+                  "preflight": hlaerec.preflight().to_dict()})
 
 
 async def api_music(request):
@@ -369,6 +403,8 @@ async def api_jobs_create(request):
             "pacing": (data.get("pacing") or None)
             if (data.get("pacing") or None) in ("fast", "balanced", "cinematic") else None,
             "use_llm": _bool(data.get("use_llm")),
+            "record_source": (data.get("record_source") or None)
+            if (data.get("record_source") or None) in ("radar", "hlae") else None,
             "use_prefs": bool(data.get("use_prefs", True)),
             "record": bool(data.get("record", True)),
             "out_dir": (str(data.get("out_dir") or "").strip() or None),
@@ -735,6 +771,8 @@ def create_app() -> Starlette:
         Route("/favicon.ico", favicon),
         Route("/api/health", api_health),
         Route("/api/meta", api_meta),
+        Route("/api/hlae/status", api_hlae_status),
+        Route("/api/hlae/setup", api_hlae_setup, methods=["POST"]),
         Route("/api/music", api_music),
         Route("/api/demos", api_demos),
         Route("/api/validate", api_validate, methods=["POST"]),

@@ -111,6 +111,18 @@ input[type=checkbox] { accent-color: var(--accent); }
 
 .hint { color: var(--fg2); font-size: 12px; margin: 6px 0 0; }
 
+/* HLAE 游戏内录制状态盒 */
+.hlae-box {
+  margin: 4px 0 12px; padding: 10px 12px;
+  background: var(--bg3); border: 1px solid var(--line); border-radius: 8px;
+}
+.hlae-box b { font-size: 13px; }
+.hlae-box .hint { margin-top: 8px; }
+.hlae-line { font-size: 12px; color: var(--fg2); padding: 1px 0; }
+.hlae-line.bad { color: var(--err); }
+.hlae-line.warn { color: var(--warn); }
+.hlae-line.good { color: var(--ok); }
+
 /* ---------- 进度 ---------- */
 .progress-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
 .stage-badge {

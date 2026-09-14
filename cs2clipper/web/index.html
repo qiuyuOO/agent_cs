@@ -71,6 +71,23 @@
               <option value="false">确定性兜底</option>
             </select>
           </label>
+          <label class="field"><span>画面来源</span>
+            <select id="record_source">
+              <option value="">跟随偏好</option>
+              <option value="radar">radar · 2D 雷达动画（全自动）</option>
+              <option value="hlae">hlae · 真实游戏画面（需先录一次）</option>
+            </select>
+          </label>
+        </div>
+        <div class="hlae-box" id="hlae-box" hidden>
+          <div class="row between wrap">
+            <b>HLAE 游戏内录制</b>
+            <div class="row">
+              <button class="btn sm" id="btn-hlae-refresh">重新体检</button>
+              <button class="btn sm" id="btn-hlae-setup">自动填 cs2 路径</button>
+            </div>
+          </div>
+          <div id="hlae-body" class="hint">检查中…</div>
         </div>
         <label class="field"><span>输出目录（留空自动用 out/&lt;歌名&gt;）</span>
           <input id="out_dir" type="text" placeholder="out/my_edit 或绝对路径"></label>

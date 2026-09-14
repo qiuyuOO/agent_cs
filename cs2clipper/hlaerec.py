@@ -517,8 +517,14 @@ def write_cs2_scripts(
     output_dir: str | Path | None = None,
     fps: int = 60,
     target_dir: Path | None = None,
+    fallback_dir: Path | None = None,
 ) -> dict[str, Any]:
     """生成并写出整套录制脚本 (引导 + 停录 + 每段一个).
+
+    写入位置按顺序尝试: 显式 `target_dir` → CS2 的 cfg 目录 → `fallback_dir`
+    (默认 out_dir/cs2_cfg)。**必须**有兜底: CS2 可能装在需要管理员权限的目录
+    (实测本机 `E:\\SteamLibrary\\...\\game\\csgo\\cfg` 就直接 PermissionError),
+    没有兜底的话整个出片流程会被一个"写不进去"的辅助文件搞崩。
 
     返回一份清单, 直接给 CLI/Web 展示"接下来要 exec 哪些文件"。
     """
@@ -526,15 +532,54 @@ def write_cs2_scripts(
     bootstrap, stop, clips = build_cs2_config(
         plan, demo_path=demo_path, output_dir=str(out_dir), fps=fps,
     )
+
+    attempts: list[Path] = []
+    if target_dir is not None:
+        attempts.append(Path(target_dir))
+    attempts.append(cs2_cfg_dir())
+    if fallback_dir is not None:
+        attempts.append(Path(fallback_dir))
+    else:
+        attempts.append(out_dir.parent / "cs2_cfg")
+
+    target: Path | None = None
+    notes: list[str] = []
+    last_err: Exception | None = None
+    for cand in attempts:
+        try:
+            cand.mkdir(parents=True, exist_ok=True)
+            probe = cand / ".cs2clipper_write_test"
+            probe.write_text("x", encoding="utf-8")
+            probe.unlink(missing_ok=True)
+            target = cand
+            break
+        except OSError as exc:
+            last_err = exc
+            notes.append(f"{cand} 不可写 ({type(exc).__name__}), 换下一个位置")
+    if target is None:
+        raise RuntimeError(
+            f"找不到可写位置放 CS2 脚本 (试过 {[str(a) for a in attempts]}): {last_err}"
+        )
+
     written: list[str] = []
     written.append(str(write_cs2_config(bootstrap, filename="cs2clipper_bootstrap.cfg",
-                                        target_dir=target_dir)))
+                                        target_dir=target)))
     written.append(str(write_cs2_config(stop, filename="cs2clipper_stop.cfg",
-                                        target_dir=target_dir)))
+                                        target_dir=target)))
     for name, text in clips:
-        written.append(str(write_cs2_config(text, filename=name, target_dir=target_dir)))
+        written.append(str(write_cs2_config(text, filename=name, target_dir=target)))
+
+    in_cs2 = target == cs2_cfg_dir()
+    if not in_cs2:
+        notes.append(
+            f"脚本写在 {target} (不是 CS2 的 cfg 目录) —— CS2 的 exec 只在它自己的 "
+            f"cfg 目录里找文件, 所以需要把这些 .cfg 复制到 {cs2_cfg_dir()}, "
+            f"或在控制台里用绝对路径 exec"
+        )
     return {
-        "cfg_dir": str(target_dir or cs2_cfg_dir()),
+        "cfg_dir": str(target),
+        "in_cs2_cfg_dir": in_cs2,
+        "notes": notes,
         "bootstrap": written[0],
         "stop": written[1],
         "clips": written[2:],
