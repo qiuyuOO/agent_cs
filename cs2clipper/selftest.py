@@ -1,4 +1,4 @@
-"""完整自检 —— 单元级 + 集成级 + 端到端.
+﻿"""完整自检 —— 单元级 + 集成级 + 端到端.
 
 用法:
     # 单元 + 集成 (约 1 分钟, 不需要 API key)
@@ -2698,6 +2698,10 @@ def test_hlae(c: Check) -> None:
         """录制素材缺失时必须**报出来**, 而不是静默少一段.
 
         少了不说, 成片就会比音乐短一截而且没人知道为什么。
+        同时验证**产物名匹配**: cfg 里生成的 record name 是
+        `<输出目录名>_<片段名>` (如 `hlae_record_clip_001`), 而计划里的名字是
+        `clip_001`。真实缺陷: 一开始只做 `startswith` 匹配, 这个形态**永远匹配
+        不上** —— 真录完了也一段都用不了, 成片只会说"没有可用素材"。
         """
         tmp = config.WORK_DIR / "_hlae_rec_probe"
         shutil.rmtree(tmp, ignore_errors=True)
@@ -2718,11 +2722,24 @@ def test_hlae(c: Check) -> None:
             is_true(items == [], f"没有素材却产出了片段: {items}")
             is_true(len(notes) == 2, f"两段都缺素材, 却只报 {len(notes)} 条")
             is_true(all("clip_00" in n for n in notes), f"说明里没带片段名: {notes}")
-            return f"空目录 -> 0 片段 + {len(notes)} 条说明"
+
+            # 名字形态匹配: 三种真实可能出现的形态都要能对上
+            for style, dirname in (("精确", "clip_001"),
+                                   ("带目录前缀(真实形态)", "hlae_record_clip_001"),
+                                   ("带额外后缀", "clip_001_take2")):
+                d = tmp / dirname
+                d.mkdir(parents=True, exist_ok=True)
+                Image.new("RGB", (32, 18), (10, 20, 30)).save(d / "f_00000000.png")
+                hit = H._match_stream(plan[0], [x["name"] for x in
+                                                H.discover_recordings(tmp)["frame_dirs"]])
+                is_true(hit == dirname,
+                        f"{style} 形态 ({dirname}) 匹配失败, 得到 {hit!r}")
+                shutil.rmtree(d, ignore_errors=True)
+            return f"空目录 -> 0 片段 + {len(notes)} 条说明; 三种名字形态都能匹配"
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-    c("素材缺失会明确报出", missing_material_is_reported)
+    c("素材缺失会报出且产物名能匹配", missing_material_is_reported)
 
     def pipeline_routing():
         """record_source 必须真的把 render 分流到 HLAE 路径.
@@ -2732,32 +2749,128 @@ def test_hlae(c: Check) -> None:
         是假的。
         """
         from . import pipeline as P
+        from . import store as store_mod
 
         track = config.WORK_DIR / "selftest_track.wav"
         if not track.is_file():
             from . import music as M
             M.make_test_track(track)
         out = config.WORK_DIR / "_hlae_route"
+        # 把录制目录指到一个**空的**临时位置。
+        # 不能依赖默认的 work/hlae_record: 那里可能真有录制素材 (比如刚跑过
+        # 端到端验证), 那样这条用例就会从"应当报错"变成"真的去出片", 失败原因
+        # 还跟被测逻辑无关 —— 测试依赖环境状态是坏味道。
+        orig_prefs = store_mod.load_prefs
+        probe_rec = config.WORK_DIR / "_hlae_route_rec"
+        shutil.rmtree(probe_rec, ignore_errors=True)
+        probe_rec.mkdir(parents=True, exist_ok=True)
         try:
-            P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
-                  use_llm=False, verbose=False, use_prefs=False, record=False,
-                  record_source="hlae")
-            raise AssertionError("record_source=hlae 却没有走 HLAE 路径")
-        except RuntimeError as e:
-            msg = str(e)
-            is_true("录制素材" in msg or "录制脚本" in msg,
-                    f"HLAE 路径的报错没说清下一步: {msg[:160]}")
-        # 未知取值必须被拒 (而不是静默当成 radar)
-        try:
-            P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
-                  use_llm=False, verbose=False, use_prefs=False, record=False,
-                  record_source="nonsense")
-            raise AssertionError("未知 record_source 未被拒绝")
-        except ValueError:
-            pass
-        return "hlae 分流生效, 未知取值被拒"
+            store_mod.load_prefs = lambda path=None: {**orig_prefs(path),   # type: ignore
+                                                  "hlae_output_dir": str(probe_rec)}
+            try:
+                P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
+                      use_llm=False, verbose=False, use_prefs=False, record=False,
+                      record_source="hlae")
+                raise AssertionError("record_source=hlae 却没有走 HLAE 路径")
+            except RuntimeError as e:
+                msg = str(e)
+                is_true("录制素材" in msg or "录制脚本" in msg,
+                        f"HLAE 路径的报错没说清下一步: {msg[:160]}")
+            # 未知取值必须被拒 (而不是静默当成 radar)
+            try:
+                P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
+                      use_llm=False, verbose=False, use_prefs=False, record=False,
+                      record_source="nonsense")
+                raise AssertionError("未知 record_source 未被拒绝")
+            except ValueError:
+                pass
+        finally:
+            store_mod.load_prefs = orig_prefs                                  # type: ignore
+            shutil.rmtree(probe_rec, ignore_errors=True)
+        return "hlae 分流生效, 未知取值被拒 (用独立空录制目录, 不受环境状态影响)"
 
     c("record_source 分流与校验", pipeline_routing)
+
+    def both_sources_share_the_same_contract():
+        """两条画面源产出的 ConcatItem 必须**等价**.
+
+        雷达路径直接把 EDL 的 transition / duration 交给 ConcatItem; HLAE 路径
+        是自己拼的。真实缺陷: HLAE 那侧一开始漏了 transition —— 转场在
+        concat_clips 里目前只用于硬切+淡入淡出, 所以表面看不出问题, 但契约已经
+        不一致了 (将来 concat_clips 真做转场, HLAE 路径会静默少一层)。
+
+        这里用**同一个 EDL** 分别喂给两条路, 逐字段比对 ConcatItem。
+        """
+        from . import pipeline as P
+
+        class Clip:
+            def __init__(self, i, s, e, out, speed, tr):
+                self.index, self.src_start_tick, self.src_end_tick = i, s, e
+                self.out_start, self.out_end = 0.0, out
+                self.duration = out
+                self.highlight_id, self.speed = f"c{i}", speed
+                self.music_segment, self.effects = 0, {}
+                self.transition, self.transition_duration = tr, 0.42
+                self.reason, self.emphasis = "", None
+
+        class Card:
+            def __init__(self, cid):
+                self.id, self.player, self.round_num = cid, "P", 1
+                self.start_tick, self.end_tick = 0, 10**9
+                self.kills, self.tags, self.places, self.utility = [], [], [], []
+                self.score, self.player_side = 50.0, "t"
+                self.clutch_enemies, self.round_winner, self.round_reason = 0, "t", ""
+
+        tps = config.DEMO_TICKRATE
+        clips = [
+            Clip(0, tps * 100, tps * 102, 2.0, 1.0, None),
+            Clip(1, tps * 200, tps * 203, 3.0, 1.0, "fade"),
+            Clip(2, tps * 300, tps * 304, 4.0, 1.0, "dissolve"),
+        ]
+        edl = type("EDL", (), {"clips": clips})()
+        cards = [Card(f"c{i}") for i in range(3)]
+
+        plan = H.plan_from_edl(edl, cards)
+        is_true([s.transition for s in plan] == [None, "fade", "dissolve"],
+                f"计划丢掉了转场: {[s.transition for s in plan]}")
+        is_true(all(abs(s.transition_duration - 0.42) < 1e-9 for s in plan),
+                "计划丢掉了转场时长")
+
+        # 造出"已录好"的帧序列, 让 HLAE 路径真的产出 items。
+        # 目录名故意用 cfg 里真实生成的形态 (`<输出目录名>_<片段名>`), 因为
+        # 匹配逻辑正是踩过这个坑: 用 startswith 匹配时 `hlae_record_clip_001`
+        # 对不上 `clip_001`, 真录完了也一段都用不上。
+        tmp = config.WORK_DIR / "_hlae_contract"
+        shutil.rmtree(tmp, ignore_errors=True)
+        rec = tmp / "rec"
+        rec.mkdir(parents=True, exist_ok=True)
+        try:
+            for seg in plan:
+                d = rec / f"hlae_record_{seg.name}"
+                d.mkdir(parents=True, exist_ok=True)
+                for i in range(12):
+                    Image.new("RGB", (64, 36), (i * 20 % 256, 30, 60)).save(
+                        d / f"f_{i:08d}.png")
+            items, notes = H.build_from_recordings(plan, rec, tmp / "clips",
+                                                  fps=60, size=(64, 36))
+            is_true(len(items) == len(plan), f"应产出 {len(plan)} 段, 实际 {len(items)}")
+            is_true(not notes, f"素材齐全却有说明: {notes}")
+            got = [(i.transition, round(i.transition_duration, 3)) for i in items]
+            want = [(s.transition, round(s.transition_duration, 3)) for s in plan]
+            is_true(got == want, f"HLAE 路径的转场与 EDL 不一致:\n  HLAE={got}\n  计划={want}")
+            # 时长必须等于 EDL 声明 (这是与音乐对齐的前提)
+            for it, seg in zip(items, plan):
+                approx(it.duration, seg.out_duration, 1e-9)
+            for it in items:
+                is_true(it.path.is_file(), f"片段文件不存在: {it.path}")
+                d = compose.probe_duration(it.path)
+                approx(d, it.duration, 0.15)
+            return (f"{len(items)} 段逐字段一致: 转场 {[g[0] for g in got]}, "
+                    f"时长全部对齐 EDL")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    c("两条画面源产物契约一致", both_sources_share_the_same_contract)
 
 
 # ==================================================================

@@ -316,6 +316,9 @@ class RecSegment:
     out_duration: float
     speed: float                 # EDL 要求的播放倍速 (>1 快放, <1 慢放)
     name: str = ""               # mirv_streams record name
+    # 与**下一段**之间的转场 (原样从 EDL 带过来, 保证两条画面源产物等价)
+    transition: str | None = None
+    transition_duration: float = 0.4
 
     @property
     def demo_span(self) -> float:
@@ -344,6 +347,8 @@ class RecSegment:
             "speed": self.speed,
             "realtime_factor": round(self.realtime_factor, 4),
             "name": self.name,
+            "transition": self.transition,
+            "transition_duration": self.transition_duration,
         }
 
 
@@ -353,6 +358,10 @@ def plan_from_edl(edl, highlights: Sequence[Any]) -> list[RecSegment]:
     注意 EDL 的 `src_start_tick/src_end_tick` 是 **demo tick**, 而 `out_start/
     out_end` 是成片时间轴。录制的取景窗口应当用前者, 时长用后者 —— 两者之比
     就是 ffmpeg 需要做的变速比。
+
+    **转场也要一起带过来**: compose.concat_clips 目前只做硬切 + 段首尾淡入淡出,
+    但它的契约里是有 transition 的。雷达路径会把它传下去, HLAE 路径若丢掉,
+    两条路的产物就不等价了 (以后 concat_clips 真做转场时, HLAE 路径会静默少一层)。
     """
     by_id = {c.id: c for c in highlights}
     out: list[RecSegment] = []
@@ -371,6 +380,8 @@ def plan_from_edl(edl, highlights: Sequence[Any]) -> list[RecSegment]:
                 out_duration=cl.duration,
                 speed=float(cl.speed or 1.0),
                 name=f"clip_{i + 1:03d}",
+                transition=getattr(cl, "transition", None),
+                transition_duration=float(getattr(cl, "transition_duration", 0.4) or 0.4),
             )
         )
     return out
@@ -606,6 +617,30 @@ IMAGE_EXT = (".tga", ".bmp", ".png", ".jpg", ".jpeg")
 VIDEO_EXT = (".mp4", ".mkv", ".mov", ".avi", ".webm")
 
 
+def _match_stream(seg: "RecSegment", names) -> str | None:
+    """把录制产物对回计划里的片段.
+
+    真实缺陷: cfg 里生成的 record name 是 `hlae_record_clip_001`
+    (输出目录名 + 片段名, 见 build_cs2_config), 而一开始这里只会做
+    `name.startswith(seg.name)` —— `hlae_record_clip_001`.startswith(`clip_001`)
+    是 False, 于是**真录完了也一段都匹配不上**, 成片直接报"没有可用素材"。
+
+    所以按"先精确、再后缀、最后才退化到包含"的顺序匹配。
+    """
+    names = list(names)
+    if not names:
+        return None
+    if seg.name in names:
+        return seg.name
+    for n in names:                       # 产物名通常以片段名结尾
+        if n.endswith(seg.name):
+            return n
+    for n in names:                       # 兜底: 名字里带片段名
+        if seg.name in n:
+            return n
+    return None
+
+
 def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
     """看录制目录里有什么 —— 用来判断"录成功了没".
 
@@ -733,17 +768,28 @@ def build_from_recordings(
 
     items: list[compose.ConcatItem] = []
     notes: list[str] = []
+
+    # 转场必须跟着走: 雷达路径是把 EDL 的 transition 原样交给 ConcatItem 的,
+    # 这里若丢掉, 两条画面源的产物就不等价 (将来 concat_clips 真做转场时,
+    # HLAE 路径会静默少一层)。
+    def _item(seg: "RecSegment", path: Path) -> compose.ConcatItem:
+        return compose.ConcatItem(
+            path=path, duration=seg.out_duration,
+            transition=seg.transition,
+            transition_duration=seg.transition_duration,
+        )
+
     for seg in plan:
-        # 约定: stream 名就是 clip_001 这种; 子目录名可能带后缀
-        hit = next((k for k in by_name if k == seg.name or k.startswith(seg.name)), None)
+        # 产物名可能是 `clip_001`, 也可能是 `hlae_record_clip_001` —— 见 _match_stream
+        hit = _match_stream(seg, by_name)
         if hit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
             frames_to_clip(record_dir / hit, out, fps=fps,
                            target_duration=seg.out_duration, size=size)
-            items.append(compose.ConcatItem(path=out, duration=seg.out_duration))
+            items.append(_item(seg, out))
             continue
 
-        vhit = next((k for k in videos if k == seg.name or k.startswith(seg.name)), None)
+        vhit = _match_stream(seg, videos)
         if vhit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
             src = record_dir / vhit
@@ -751,7 +797,7 @@ def build_from_recordings(
             notes.append(f"{seg.name}: 用录好的视频 {vhit} ({actual:.2f}s), "
                          f"目标 {seg.out_duration:.2f}s")
             compose.finalize_clip(src, out, target_duration=seg.out_duration, size=size)
-            items.append(compose.ConcatItem(path=out, duration=seg.out_duration))
+            items.append(_item(seg, out))
             continue
 
         notes.append(f"{seg.name}: 没有找到录制素材 (R{seg.round_num} {seg.player}), 已跳过")
