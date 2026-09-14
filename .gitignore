@@ -46,3 +46,7 @@ dist/
 *.swp
 Thumbs.db
 desktop.ini
+
+# --- Agent 工具在工作区里自动生成的脚手架 (由工具自己管理, 不属于本项目) ---
+.agents/
+skills-lock.json

@@ -73,8 +73,13 @@ def build_model(model: str | None = None, temperature: float = 0.3):
 
 
 # 向后兼容: 原代码 `from model import model`
-# 注意这会在 import 时**立即**构造模型, 因此失败会直接抛错。
-# 新代码建议改用 build_model(), 它是惰性的。
+# 注意这会在 import 时**立即**构造模型。构造失败时这里**不抛错**, 而是把
+# model 置成 None 并记下原因 —— 这样 `import model` 本身不会炸掉整个程序
+# (老代码里 import 阶段就崩很难排查)。
+#
+# 代价是: 拿到 None 之后如果直接传给 create_deep_agent / create_agent, 只会
+# 得到一条看不懂的报错或一条弃用告警, 而且会**静默**用上别家的默认模型。
+# 所以新代码请用 require_model(): 缺什么它会直接说清楚。
 try:
     model = build_model()
 except Exception as _exc:  # pragma: no cover - 依赖外部配置
@@ -82,6 +87,24 @@ except Exception as _exc:  # pragma: no cover - 依赖外部配置
     IMPORT_ERROR = _exc
 else:
     IMPORT_ERROR = None
+
+
+def require_model():
+    """返回可用的模型; 构造失败时抛出带修复建议的错误.
+
+    典型失败原因: 没装 `langchain-deepseek` (langchain 1.x 里 DeepSeek 是独立
+    包), 或者 .env 里缺 DEEPSEEK_API_KEY。
+    """
+    if model is not None:
+        return model
+    raise RuntimeError(
+        f"模型不可用: {type(IMPORT_ERROR).__name__ if IMPORT_ERROR else '?'}: "
+        f"{IMPORT_ERROR}\n"
+        f"排查建议:\n"
+        f"  1) 是否装了 langchain-deepseek:  pip install langchain-deepseek\n"
+        f"  2) .env 里 DEEPSEEK_API_KEY 是否存在且没有多余的分号/引号\n"
+        f"  当前状态: {describe()}"
+    )
 
 
 def describe() -> str:
