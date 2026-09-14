@@ -22,7 +22,7 @@ from typing import Annotated, Any, Callable, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from . import compose, config, demo as demo_mod, music as music_mod, planner as planner_mod, profile as profile_mod, progress, radar as radar_mod, store
+from . import compose, config, demo as demo_mod, hlaerec, music as music_mod, planner as planner_mod, profile as profile_mod, progress, radar as radar_mod, store
 from . import mapview as mv
 
 
@@ -67,6 +67,8 @@ class PipelineState(TypedDict, total=False):
     _bus: Any
     # 取消判定回调 (Web 界面"停止"按钮用): 返回 True 时在下一段之前中止。
     _should_cancel: Any
+    # 画面来源: "radar"(默认, 2D 雷达动画) | "hlae"(HLAE + CS2 游戏内录制)
+    record_source: str
 
 
 # ------------------------------------------------------------------
@@ -175,7 +177,16 @@ def node_plan(state: PipelineState) -> dict[str, Any]:
 
 
 def node_render(state: PipelineState) -> dict[str, Any]:
-    """渲染每一段并编码成 clip mp4."""
+    """渲染每一段并编码成 clip mp4.
+
+    两条画面来源, 输出契约完全一致 (每段一个"仅视频、时长精确"的 mp4), 所以
+    后面的拼接铺乐完全不区分:
+        radar —— PIL 逐帧画 2D 雷达动画 (全自动, 不需要游戏)
+        hlae  —— HLAE + CS2 游戏内录制 (真实游戏画面, 需要人工跑一次录制)
+    """
+    if str(state.get("record_source") or "radar").lower() == "hlae":
+        return node_render_hlae(state)
+
     t0 = time.time()
     edl = state["edl"]
     verbose = state.get("verbose", False)
@@ -348,6 +359,96 @@ def node_render(state: PipelineState) -> dict[str, Any]:
     }
 
 
+def node_render_hlae(state: PipelineState) -> dict[str, Any]:
+    """HLAE 画面源: 生成录制脚本 + 用已录好的素材出片.
+
+    为什么不是"全自动录一遍": HLAE 注入 CS2 需要 GUI、需要人在桌面上确认 VAC
+    警告, 录制本身也是**按 demo 时间轴跑的实时过程** (一段 4 秒的镜头要花几秒
+    到几十秒)。所以这里分成两个明确的步骤:
+
+        第一次跑 → 生成 cfg/计划, 告诉你"去游戏里 exec 这个文件", 然后停下
+        录完之后再跑 → 探测素材 → 规整成精确时长的片段 → 继续拼接铺乐
+
+    这样流水线其余部分 (音乐分析/编排/拼接) 不用任何特殊处理, 也不会出现
+    "以为在自动录、其实什么都没录到"这种静默失败。
+    """
+    t0 = time.time()
+    edl = state["edl"]
+    bus = progress.from_state(state)
+    out_dir = Path(state["out_dir"])
+    clips_dir = out_dir / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    fps = hlaerec.hlae_capture_fps()
+    rec_dir = hlaerec.record_output_dir()
+
+    bus.stage_start("render", f"HLAE 录制源: {len(edl.clips)} 段")
+
+    plan = hlaerec.plan_from_edl(edl, state.get("highlights") or [])
+    plan_path = hlaerec.write_plan(plan, out_dir / "hlae_plan.json")
+    scripts = hlaerec.write_cs2_scripts(
+        state["demo_path"], plan, output_dir=rec_dir, fps=fps,
+    )
+
+    found = hlaerec.discover_recordings(rec_dir)
+    if not found["frame_dirs"] and not found["videos"]:
+        # 还没录 —— 这不是错误, 而是期望的第一步。明确告诉人要做什么。
+        pf = hlaerec.preflight()
+        detail = {
+            "plan": str(plan_path),
+            "cs2_cfg_dir": scripts["cfg_dir"],
+            "cs2_bootstrap": scripts["bootstrap"],
+            "record_dir": str(rec_dir),
+            "segments": len(plan),
+            "preflight_ok": pf.ok,
+            "problems": pf.problems,
+            "warnings": pf.warnings,
+            "next_steps": [
+                f"1) 打开 {hlaerec.hlae_exe()}, 确认已选好 CS2, 点 Launch 启动游戏",
+                f"2) CS2 控制台执行  exec {Path(scripts['bootstrap']).name}",
+                f"3) 再执行  exec {Path(scripts['clips'][0]).name}  开始录第 1 段",
+                f"4) 走到该段末尾按 F8 停录, 然后 exec 下一段 (共 {len(plan)} 段)",
+                f"5) 录完回到这里重跑同一条命令, 会读取 {rec_dir} 自动出片",
+            ],
+        }
+        msg = "还没找到录制素材 —— 已生成录制脚本, 请按下一步在游戏里录一次"
+        bus.stage_done("render", msg, **detail)
+        raise RuntimeError(
+            f"{msg}\n"
+            f"  录制计划: {plan_path}\n"
+            f"  脚本目录: {scripts['cfg_dir']}  ({len(scripts['clips'])} 个片段脚本)\n"
+            f"  输出目录: {rec_dir}\n"
+            + (f"  体检问题: {'; '.join(pf.problems)}\n" if pf.problems else "")
+            + "  步骤:\n    " + "\n    ".join(detail["next_steps"])
+        )
+
+    size = config.aspect_size(state.get("aspect"))
+    items, notes = hlaerec.build_from_recordings(
+        plan, rec_dir, clips_dir, fps=fps, size=size,
+    )
+    for n in notes:
+        bus.log(n, stage="render")
+    if not items:
+        raise RuntimeError(
+            f"录制目录里有素材, 但没有一段能对上录制计划 (名字不匹配?)\n"
+            f"  计划: {plan_path}\n  目录: {rec_dir}\n"
+            f"  发现: {found}"
+        )
+
+    covered = sum(i.duration for i in items)
+    bus.stage_done(
+        "render",
+        f"HLAE 素材规整完成 {time.time()-t0:.1f}s: {len(items)}/{len(plan)} 段, "
+        f"共 {covered:.1f}s",
+        clips=len(items), planned=len(plan),
+        covered=round(covered, 2), record_dir=str(rec_dir),
+        plan=str(plan_path), cs2_cfg=str(cfg_path),
+    )
+    return {
+        "timings": {**state.get("timings", {}), "render": time.time() - t0},
+        "concat_items": items,
+    }
+
+
 def node_compose(state: PipelineState) -> dict[str, Any]:
     t0 = time.time()
     bus = progress.from_state(state)
@@ -460,6 +561,7 @@ def run(
     max_clips: int | None = None,
     use_llm: bool | None = None,
     pacing: str | None = None,
+    record_source: str | None = None,
     verbose: bool = True,
     use_prefs: bool = True,
     record: bool = True,
@@ -471,6 +573,11 @@ def run(
     偏好类参数 (fps/aspect/max_clips/max_cards/use_llm) 传 None 表示"用已存偏好";
     显式传值则覆盖偏好。画面类偏好 (镜头缩放/特效开关) 会作为每段的基础 effects
     传给渲染器, 由 EDL 里逐段的 effects 覆盖。
+
+    `record_source` 决定画面从哪来: "radar"(默认) 是 2D 雷达动画, "hlae" 是
+    HLAE + CS2 游戏内录制 (真实游戏画面)。后者需要先人工跑一次录制 —— 第一次
+    调用会生成录制脚本并**明确报错告诉你下一步做什么**, 录完再调用同一条命令
+    就会读取素材继续出片 (详见 hlaerec.py)。
 
     `on_event` 是可选的进度回调 (见 progress.py): Web 界面用它做实时进度条,
     CLI 不用。回调抛异常会被吞掉, 绝不影响出片。
@@ -486,6 +593,7 @@ def run(
             "max_clips": max_clips,
             "use_llm": use_llm,
             "pacing": pacing,
+            "record_source": record_source,
         },
         use_prefs=use_prefs,
     )
@@ -495,6 +603,10 @@ def run(
     max_clips = int(params["max_clips"])
     use_llm = bool(params["use_llm"])
     pacing = str(params.get("pacing", "balanced"))
+    record_source = str(params.get("record_source", "radar") or "radar").lower()
+    if record_source not in ("radar", "hlae"):
+        raise ValueError(f"未知的画面来源 record_source={record_source!r} "
+                         f"(只能是 radar 或 hlae)")
 
     music_path = Path(music_path)
     # demo: 显式传参 > 已存偏好 default_demo > 项目内置示例
@@ -543,6 +655,7 @@ def run(
         "max_cards": max_cards,
         "max_clips": max_clips,
         "use_llm": use_llm,
+        "record_source": record_source,
         "verbose": verbose,
         "prefs": params,
         "profile": profile_mod.profile_brief() if use_prefs else {},
@@ -551,10 +664,11 @@ def run(
         "_should_cancel": should_cancel,
     }
     bus.log(
-        f"开始: {music_path.name} + {demo_path.name} → {out_dir}",
+        f"开始: {music_path.name} + {demo_path.name} → {out_dir}"
+        + (f"  [画面源={record_source}]" if record_source != "radar" else ""),
         out_dir=str(out_dir),
         aspect=aspect, fps=fps, max_clips=max_clips, max_cards=max_cards,
-        use_llm=use_llm, pacing=pacing,
+        use_llm=use_llm, pacing=pacing, record_source=record_source,
     )
     try:
         state = app.invoke(init)
@@ -649,6 +763,24 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--no-llm", action="store_true", help="跳过 LLM, 用确定性编排")
     ap.add_argument("--use-llm", action="store_true", help="强制使用 LLM 编排")
+    ap.add_argument(
+        "--record-source", choices=("radar", "hlae"), default=None,
+        help=(f"画面来源: radar=2D 雷达动画 (全自动) / "
+              f"hlae=HLAE+CS2 游戏内录制 (真实画面, 需先人工录一次; "
+              f"偏好值: {prefs_now.get('record_source', 'radar')})"),
+    )
+    ap.add_argument(
+        "--hlae-check", action="store_true",
+        help="只做 HLAE 录制环境体检 (HLAE/CS2/cs2.exe 路径/注入器) 后退出",
+    )
+    ap.add_argument(
+        "--hlae-setup", action="store_true",
+        help="把 cs2.exe 路径写进 HLAE 配置后退出 (省去在 GUI 里手选)",
+    )
+    ap.add_argument(
+        "--hlae-gen-cfg", action="store_true",
+        help="按当前音乐/demo 生成录制计划与 CS2 cfg (不渲染, 不录制) 后退出",
+    )
 
     # --- 偏好管理 ---
     ap.add_argument("--set", nargs="+", metavar="KEY VALUE",
@@ -679,6 +811,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
+
+    # ---------- HLAE 相关子命令 ----------
+    if args.hlae_check:
+        pf = hlaerec.preflight()
+        print(pf.text())
+        return 0 if pf.ok else 1
+
+    if args.hlae_setup:
+        try:
+            cfg, note = hlaerec.set_hlae_cs2_exe()
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"[失败] {e}")
+            return 1
+        print(f"已写入 HLAE 配置: {cfg}")
+        print(f"  改动: {note}")
+        print("\n再跑一次 --hlae-check 确认体检全绿。")
+        return 0
 
     # ---------- 偏好管理子命令 ----------
     if args.set:
@@ -800,6 +949,40 @@ def main(argv: list[str] | None = None) -> int:
     elif args.use_llm:
         use_llm_explicit = True
 
+    # ---------- 只生成 HLAE 录制脚本 (不渲染不录制) ----------
+    if args.hlae_gen_cfg:
+        from . import planner as _planner
+
+        a = music_mod.analyze_music(music)
+        res = demo_mod.analyze_demo(
+            str(Path(args.demo) if args.demo else config.DEFAULT_DEMO),
+            max_cards=int(store.load_prefs().get("max_cards", 40)),
+            with_utility=False,
+        )
+        cards = demo_mod.cards_from_dicts(res["highlights"])
+        edl = _planner.plan_edit(a, cards, use_llm=False,
+                                 max_clips=int(store.load_prefs().get("max_clips", 22)),
+                                 verbose=False)
+        plan = hlaerec.plan_from_edl(edl, cards)
+        out = Path(args.out) if args.out else (config.ROOT / "out" / "hlae_cfg")
+        out.mkdir(parents=True, exist_ok=True)
+        plan_path = hlaerec.write_plan(plan, out / "hlae_plan.json")
+        cfg_path = hlaerec.write_cs2_config(hlaerec.build_cs2_config(
+            plan, demo_path=res["demo_path"], output_dir=str(hlaerec.record_output_dir()),
+            fps=hlaerec.hlae_capture_fps(),
+        ))
+        print(f"录制计划: {plan_path}  ({len(plan)} 段)")
+        print(f"CS2 脚本: {cfg_path}")
+        print(f"录制输出: {hlaerec.record_output_dir()}")
+        total = sum(s.out_duration for s in plan)
+        print(f"成片预计时长: {total:.1f}s")
+        print("\n下一步:")
+        print(f"  1) 启动 {hlaerec.hlae_exe()}, 用它的 Launch 按钮起 CS2")
+        print(f"  2) CS2 控制台执行:  exec {cfg_path.name}")
+        print(f"  3) 录完后:  python -m cs2clipper.pipeline --music <同一首歌> "
+              f"--record-source hlae")
+        return 0
+
     t0 = time.time()
     state = run(
         music,
@@ -811,6 +994,7 @@ def main(argv: list[str] | None = None) -> int:
         max_clips=args.max_clips,
         use_llm=use_llm_explicit,
         pacing=args.pacing,
+        record_source=args.record_source,
         verbose=not args.quiet,
         use_prefs=not args.no_prefs,
         record=not args.no_record,

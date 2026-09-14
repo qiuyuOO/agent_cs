@@ -155,6 +155,17 @@ PREFS: dict[str, PrefSpec] = {
     # 常用 demo 的路径。存下来就不必每次在命令行敲一长串绝对路径;
     # 命令行 --demo 仍然可以覆盖它。
     "default_demo": PrefSpec("", str, "默认 demo 路径 (留空则用项目内置示例)"),
+    # --- 画面来源 ---
+    # radar = 2D 雷达动画 (全自动, 不需要游戏)
+    # hlae  = HLAE + CS2 游戏内录制 (真实游戏画面, 需要装 HLAE 且手动跑一次录制)
+    "record_source": PrefSpec("radar", str,
+                              "画面来源: radar=2D 雷达动画 / hlae=HLAE 游戏内录制",
+                              choices=("radar", "hlae")),
+    "hlae_dir": PrefSpec("", str, "HLAE 安装目录 (留空则用 tools/hlae)"),
+    "hlae_output_dir": PrefSpec("", str,
+                                "HLAE 录制输出目录 (留空则用 work/hlae_record)"),
+    "hlae_fps": PrefSpec(60, int, "HLAE 录制帧率 (越高越吃磁盘, 60 够用)"),
+    "cs2_exe": PrefSpec("", str, "cs2.exe 路径 (留空则自动在 Steam 库里找)"),
     # --- 编排 ---
     "use_llm": PrefSpec(True, bool, "是否用 LLM 编排 (关掉则走确定性兜底)"),
     "pacing": PrefSpec("balanced", str,
