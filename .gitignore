@@ -23,7 +23,14 @@ clipstore_*/
 
 # --- 依赖与工具 (体积大, 可由 requirements.txt 重建) ---
 .venv/
-tools/
+# tools/ 整体忽略 (tools/ffmpeg 是 295 MB 的二进制), 但 tools/dev 例外 ——
+# 那里是几十 KB 的取证/自检脚本, 自检要用到它们; 整个目录都忽略的话,
+# 干净 clone 之后 "前端可无头执行" 那个用例会直接失效。
+# 注意: 要让否定规则生效, 必须先把父目录 tools/ 自己重新纳入 (!tools/),
+# 否则 git 根本不会进这个目录看里面的规则。
+tools/*
+!tools/dev/
+!tools/.gitkeep
 .cache/
 .home/
 .deps/
