@@ -411,6 +411,19 @@ OPTIONAL_PREFIX = (
 )
 
 
+#: 画面流的名字 (mirv_streams add normal <这个名字>)。录制产物会落到
+#: `<录制目录>/<这个名字>/takeNNNN/` 下。
+STREAM_NAME = "cs2clipper"
+
+#: 每个流要用的录制设置。
+#: 可用内置预设 (来自 DLL): afxFfmpeg / afxFfmpegYuv420p / afxFfmpegLosslessBest /
+#: afxFfmpegLosslessFast / afxFfmpegProres / afxFfmpegProresAlpha / afxFfmpegRaw /
+#: afxFfmpegHuffyuv。
+#: 默认用 Yuv420p: 有损但足够 (成片最后也编码成 yuv420p), 文件比无损小得多。
+#: 想要无损改成 "afxFfmpegLosslessFast"。
+STREAM_SETTINGS = "afxFfmpegYuv420p"
+
+
 def build_cs2_config(
     plan: Sequence[RecSegment],
     *,
@@ -443,14 +456,19 @@ def build_cs2_config(
     start/end`、`mirv_skip time to`、`demo_pause/demo_resume`、`playdemo`、
     `spec_player`、`bind`。
 
-    ⚠️ **必须显式打开画面流**: DLL 帮助文本写着
-        "%s enabled 0|1 - Disable (0, default) or enable (1) game screen recording."
-    也就是**默认是关的**。第一版只设了 record name/fps 就 start, 结果三个 take
-    里只有 audio.wav、一帧画面都没有 —— 这是实测踩到的坑, 所以引导脚本里
-    第一条固定是 `mirv_streams record screen enabled 1`。
+    ⚠️ **必须先 `add` 一个画面流**。这里踩过两次坑 (都是用户真机跑出来的):
+      1. 只设 `record name` / `fps` 就 start —— 三个 take 里只有 audio.wav。
+      2. 加了 `mirv_streams record screen enabled 1` 仍然不行 —— 用户跑
+         `mirv_streams print` 得到 **"Total streams: 0"**, 说明那个命令
+         **不会创建流**, 它只是配置一个已存在的"屏幕流"。
+      正确做法 (语法来自 DLL):
+        mirv_streams add normal <名字>                     创建流
+        mirv_streams edit <名字> settings <预设>            指定录制设置
+        mirv_streams edit <名字> enabled 1 / record 1      打开并纳入录制
     """
     segs = list(plan[start_index:])
     name_prefix = Path(output_dir).name or "hlae_record"
+    stream_name = STREAM_NAME
 
     bootstrap: list[str] = []
     bootstrap.append("// cs2clipper 自动生成的 HLAE 录制引导脚本")
@@ -468,9 +486,23 @@ def build_cs2_config(
     bootstrap.append("// 只改末尾的数字; 或者用下面的 bind 把「停录」固定到 F8。")
     bootstrap.append("")
     bootstrap.append(CERTAIN_PREFIX)
-    # 画面流默认是关的 (DLL: "Disable (0, default) or enable (1)")。不打开的话
-    # 录出来只有 audio.wav、一帧画面都没有 —— 实测踩过。
-    bootstrap.append("mirv_streams record screen enabled 1")
+    # ⚠️ 必须**先 add 一个流**, 否则什么画面都录不到。
+    # 实测教训 (用户真机跑出来的):
+    #   1) `record screen enabled 1` **不会创建流** —— 跑完 `mirv_streams print`
+    #      显示 "Total streams: 0", 于是 record start 之后只有 audio.wav。
+    #   2) 正确做法是 add 一个流 (类型 normal = 完整画面):
+    #        %s normal|depth|hudBlack|... <sUniqueStreamName> - Adds a stream of given type.
+    #      然后给它指定录制设置:
+    #        %s settings <name> - Set recording settings to use from mirv_streams settings.
+    #      可用的内置预设见 DLL 里的字符串:
+    #        afxFfmpeg / afxFfmpegYuv420p / afxFfmpegLosslessBest / afxFfmpegLosslessFast
+    #        / afxFfmpegProres / afxFfmpegProresAlpha / afxFfmpegRaw / afxFfmpegHuffyuv
+    bootstrap.append(f"mirv_streams add normal {stream_name}")
+    # 有损 yuv420p 足够 (成片最后也编码成 yuv420p); 想无损可以换成
+    # afxFfmpegLosslessFast, 代价是文件大得多
+    bootstrap.append(f"mirv_streams edit {stream_name} settings {STREAM_SETTINGS}")
+    bootstrap.append(f"mirv_streams edit {stream_name} enabled 1")
+    bootstrap.append(f"mirv_streams edit {stream_name} record 1")
     # 音频另配 (我们最后统一铺音乐, 不需要录到的游戏音)
     bootstrap.append("mirv_streams record startMovieWav 0")
     bootstrap.append("mirv_streams record format tga")
@@ -478,7 +510,9 @@ def build_cs2_config(
     bootstrap.append(f"mirv_streams record fps {int(fps)}")
     bootstrap.append("bind F8 \"exec cs2clipper_stop.cfg\"")
     bootstrap.append("")
-    bootstrap.append("// 确认流已经打开 (应能看到 screen 流且 enabled=1)")
+    bootstrap.append("// 自检: 这里应当列出 1 个流且 enabled=1 / record=1。")
+    bootstrap.append("// 若仍显示 'Total streams: 0', 把下面几行输出发出来。")
+    bootstrap.append("mirv_streams settings print")
     bootstrap.append("mirv_streams print")
     bootstrap.append("")
     bootstrap.append("// 先把 demo 放起来 (路径里的反斜杠写成双斜杠)")

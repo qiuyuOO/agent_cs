@@ -728,6 +728,11 @@ def run(
         timings={k: round(v, 1) for k, v in (state.get("timings") or {}).items()},
         warnings=state.get("warnings") or [],
     )
+    # 出片结束就放掉解析缓存: 逐 tick 表 (实测 145 万行) 会一直占着几百 MB,
+    # 在内存吃紧的机器上会让下一次出片直接 MemoryError。
+    freed = demo_mod.release_demo()
+    if freed:
+        bus.log(f"已释放 demo 解析缓存 ({freed} 份)", detail_freed=freed)
     return state
 
 

@@ -174,7 +174,16 @@ class HighlightCard:
 # ------------------------------------------------------------------
 # demo 加载 (带缓存)
 # ------------------------------------------------------------------
-@lru_cache(maxsize=2)
+#: 缓存的 demo 数。**保持 1**: 解析一场 demo 会把逐 tick 表 (实测 145 万行) 整份
+#: 留在内存里, 两份就是双倍常驻。render 阶段会再取一次同一个路径 —— 命中同一份
+#: 缓存即可, 不需要同时留两份。
+#: 实测教训: 在 16 GB 机器上 (PyCharm + 抖音 + 浏览器已占 76%) 跑自检时,
+#: 这里累积的常驻内存直接导致 `MemoryError: Unable to allocate 594. KiB` ——
+#: 连半兆都申请不到, 然后整个测试进程静默退出 (没有 traceback, 只有 exit=1)。
+_DEMO_CACHE_SIZE = 1
+
+
+@lru_cache(maxsize=_DEMO_CACHE_SIZE)
 def load_demo(
     demo_path: str,
     *,
@@ -194,6 +203,25 @@ def load_demo(
     else:
         demo.parse()
     return demo
+
+
+def release_demo() -> int:
+    """释放 demo 解析缓存, 把逐 tick 表占的内存还给系统.
+
+    用在哪: 一次跑完 (`pipeline.run`) 之后调用。单次出片不需要缓存留着 ——
+    但不释放的话, 进程会一直占着几百 MB 到 1 GB 的 tick 表, 在内存吃紧的机器上
+    下一次出片就可能 MemoryError (实测: 16 GB 机器已用 76% 时连 594 KiB 都申请不到,
+    测试进程直接静默退出、没有 traceback)。
+
+    (lru_cache 只提供整体清理, 所以没有"只放掉某一场"的版本 —— 那反而会
+     把还在用的那份一起丢掉。)
+
+    Returns:
+        释放掉的缓存条目数。
+    """
+    n = load_demo.cache_info().currsize
+    load_demo.cache_clear()
+    return n
 
 
 def extract_kill_events(demo: Demo) -> list[KillEvent]:

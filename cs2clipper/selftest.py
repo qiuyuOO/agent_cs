@@ -2637,6 +2637,7 @@ def test_hlae(c: Check) -> None:
         最重要的是**每段独立的 record name**: 第一版只在开头设一次名字, 结果
         各段输出落到同一目录互相覆盖, 最后只剩最后一段。
         """
+        stream_name = H.STREAM_NAME
         plan = [
             H.RecSegment(index=i, highlight_id=f"c{i}", player=f"P{i}",
                          round_num=i + 1, demo_start_sec=10.0 * i,
@@ -2652,12 +2653,19 @@ def test_hlae(c: Check) -> None:
         is_true("bind F8" in boot, "引导脚本没绑停录键")
         is_true("mirv_streams record end" in stop, "停录脚本没有 record end")
 
-        # 引导脚本**必须显式打开画面流**。DLL 帮助文本写着
-        # "%s enabled 0|1 - Disable (0, default) or enable (1) game screen recording."
-        # —— 默认是关的。真实缺陷: 第一版只设了 record name/fps 就 start, 结果
-        # 三个 take 里只有 audio.wav、**一帧画面都没有**, 白录一场。
-        is_true("mirv_streams record screen enabled 1" in boot,
-                "引导脚本没有打开画面流 -> 只会录到 audio.wav, 没有画面")
+        # 引导脚本**必须先创建一个画面流**。这是踩过两次的坑:
+        #   1) 只设 record name/fps 就 start -> take 里只有 audio.wav
+        #   2) 加 "record screen enabled 1" 仍不行 -> 用户跑 print 得到
+        #      "Total streams: 0", 那个命令不会创建流
+        # 正确做法: add normal <名> -> edit <名> settings <预设> -> enabled/record 1
+        is_true(f"mirv_streams add normal {stream_name}" in boot,
+                f"引导脚本没有创建画面流 -> 只会录到 audio.wav, 没有画面")
+        is_true(f"mirv_streams edit {stream_name} settings" in boot,
+                "引导脚本没有给流指定录制设置")
+        is_true(f"mirv_streams edit {stream_name} enabled 1" in boot,
+                "引导脚本没有启用该流")
+        is_true(f"mirv_streams edit {stream_name} record 1" in boot,
+                "引导脚本没有把该流纳入录制")
         # 游戏音不要 (最后统一铺音乐), 否则每个 take 多个 wav 白占空间
         is_true("mirv_streams record startMovieWav 0" in boot,
                 "引导脚本没有关掉 WAV 录音")
@@ -2666,8 +2674,10 @@ def test_hlae(c: Check) -> None:
                 "引导脚本没有指定帧格式")
         # 录制目录名要显式设一次, 否则产物的目录名取决于上一次会话的状态
         is_true("mirv_streams record name" in boot, "引导脚本没有设录制目录名")
-        # 必须有一条让用户能自查的命令 (前面踩过"静默失败"的坑)
+        # 必须让用户能自查流到底建起来没有 (两次踩坑都是因为没有自检输出)
         is_true("mirv_streams print" in boot, "引导脚本没有自检查询命令")
+        is_true("mirv_streams settings print" in boot,
+                "引导脚本没有列出可用录制预设")
 
         rec_names: list[str] = []
         for name, text in clips:
