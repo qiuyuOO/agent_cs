@@ -137,6 +137,56 @@ def render_clip_video(
     return out_path
 
 
+def fit_clip(
+    src_path: str | Path,
+    out_path: str | Path,
+    *,
+    target_duration: float,
+    size: tuple[int, int] | None = None,
+    crf: int = 20,
+    preset: str = "medium",
+) -> Path:
+    """把一段视频**拉伸/压缩**到精确时长 (两端都处理).
+
+    与 finalize_clip 的区别: finalize 只补长 (tpad 冻结末帧), 适合"帧数略少"的
+    情况; 本函数用 setpts 整体重采样, **长了会压缩、短了会拉伸**, 时长严格等于
+    target_duration。
+
+    为什么需要它: HLAE 录制的素材长度取决于**人工按停录键的时机**, 可能比 EDL
+    声明长得多 —— 实测第一次录制留下了 5165 帧 / 86.08 秒, 而该片段只需要 3.6 秒。
+    finalize_clip 对这种超长素材无能为力 (它只会补长), 于是 86 秒的素材会原样
+    变成 86 秒的片段, 成片直接崩掉。
+    """
+    ffmpeg = config.require_ffmpeg()
+    src_path, out_path = Path(src_path), Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    dur = max(target_duration, 0.05)
+
+    actual = probe_duration(src_path)
+    if actual <= 1e-6:
+        raise RuntimeError(f"源视频时长读不出来: {src_path}")
+    factor = dur / actual
+    W, H = size or config.aspect_size(config.DEFAULT_ASPECT)
+
+    vf = f"setpts=PTS*{factor:.6f},scale={W}:{H}:force_original_aspect_ratio=decrease,"
+    vf += f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p"
+    _run(
+        [
+            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(src_path),
+            "-vf", vf,
+            "-t", f"{dur:.3f}",
+            "-r", str(config.FPS),
+            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+            "-pix_fmt", "yuv420p", "-an",
+            "-movflags", "+faststart",
+            str(out_path),
+        ],
+        desc=f"fit {out_path.name} ({actual:.2f}s -> {dur:.2f}s)",
+    )
+    return out_path
+
+
 def finalize_clip(
     raw_path: str | Path,
     out_path: str | Path,
@@ -154,6 +204,9 @@ def finalize_clip(
 
     这里用 tpad 克隆最后一帧补齐差额 (只补不裁), 保证每段严格等于
     target_duration, 从而视频总长 == 音乐总长。
+
+    **注意它只补长**: 素材比目标长时不会被截短 (那样会把节奏打乱)。需要两端都
+    处理的场合 (HLAE 录制素材长度不可控) 请用 fit_clip。
     """
     ffmpeg = config.require_ffmpeg()
     raw_path, out_path = Path(raw_path), Path(out_path)

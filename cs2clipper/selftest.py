@@ -2652,6 +2652,23 @@ def test_hlae(c: Check) -> None:
         is_true("bind F8" in boot, "引导脚本没绑停录键")
         is_true("mirv_streams record end" in stop, "停录脚本没有 record end")
 
+        # 引导脚本**必须显式打开画面流**。DLL 帮助文本写着
+        # "%s enabled 0|1 - Disable (0, default) or enable (1) game screen recording."
+        # —— 默认是关的。真实缺陷: 第一版只设了 record name/fps 就 start, 结果
+        # 三个 take 里只有 audio.wav、**一帧画面都没有**, 白录一场。
+        is_true("mirv_streams record screen enabled 1" in boot,
+                "引导脚本没有打开画面流 -> 只会录到 audio.wav, 没有画面")
+        # 游戏音不要 (最后统一铺音乐), 否则每个 take 多个 wav 白占空间
+        is_true("mirv_streams record startMovieWav 0" in boot,
+                "引导脚本没有关掉 WAV 录音")
+        # 帧格式必须是 ffmpeg 认得的 (tga/bmp/png); 未指定时行为不明确
+        is_true("mirv_streams record format" in boot,
+                "引导脚本没有指定帧格式")
+        # 录制目录名要显式设一次, 否则产物的目录名取决于上一次会话的状态
+        is_true("mirv_streams record name" in boot, "引导脚本没有设录制目录名")
+        # 必须有一条让用户能自查的命令 (前面踩过"静默失败"的坑)
+        is_true("mirv_streams print" in boot, "引导脚本没有自检查询命令")
+
         rec_names: list[str] = []
         for name, text in clips:
             is_true(name.endswith(".cfg"), f"片段脚本名不对: {name}")
@@ -2680,29 +2697,51 @@ def test_hlae(c: Check) -> None:
     c("录制脚本不变量", scripts_are_safe)
 
     def frames_to_exact_duration():
-        """帧序列 → 精确时长片段 (与 compose.finalize_clip 的契约一致).
+        """帧序列 → 精确时长片段 (与雷达路径的产物契约一致).
 
         这是"录制素材能接回流水线"的关键: 无论录了多少帧, 产出片段的时长必须
         **严格等于** EDL 声明的时长, 否则视频轨与音乐轨会对不上。
+
+        **两个方向都要测**: 录制素材的长短完全取决于人工按停录键的时机 ——
+        实测第一次录制留下了 5165 帧 / **86.08 秒**, 而该片段只需要 3.6 秒。
+        只补不裁的 finalize_clip 处理不了这种超长素材 (86 秒会原样进成片),
+        所以这里同时验证"短素材被拉伸"和"长素材被压缩"。
         """
         tmp = config.WORK_DIR / "_hlae_frames"
         shutil.rmtree(tmp, ignore_errors=True)
         tmp.mkdir(parents=True, exist_ok=True)
+        out = config.WORK_DIR / "_hlae_clip_test.mp4"
         try:
-            for i in range(30):      # 30 帧 @60fps = 0.5s 素材
+            # (a) 短素材: 30 帧 @60fps = 0.5s, 目标 2.0s -> 慢放拉伸
+            for i in range(30):
                 Image.new("RGB", (160, 90), (i * 8 % 256, 40, 90)).save(
                     tmp / f"frame_{i:08d}.png")
-            out = config.WORK_DIR / "_hlae_clip_test.mp4"
             H.frames_to_clip(tmp, out, fps=60, target_duration=2.0, size=(160, 90))
-            dur = compose.probe_duration(out)
-            is_true(abs(dur - 2.0) < 0.15,
-                    f"产出时长 {dur:.2f}s 与目标 2.0s 不符 (慢放/拉伸没生效?)")
+            dur_short = compose.probe_duration(out)
+            is_true(abs(dur_short - 2.0) < 0.15,
+                    f"短素材未被拉伸: 得到 {dur_short:.2f}s, 目标 2.0s")
+
+            # (b) 长素材: 300 帧 @60fps = 5.0s, 目标 1.5s -> 快放压缩
+            #     (对应"忘了及时按 F8, 录了一大段"的真实情况)
+            shutil.rmtree(tmp, ignore_errors=True)
+            tmp.mkdir(parents=True, exist_ok=True)
+            for i in range(300):
+                Image.new("RGB", (160, 90), (i % 256, 60, 120)).save(
+                    tmp / f"frame_{i:08d}.png")
             out.unlink(missing_ok=True)
-            return f"30 帧(0.5s) -> 拉伸到 {dur:.2f}s"
+            H.frames_to_clip(tmp, out, fps=60, target_duration=1.5, size=(160, 90))
+            dur_long = compose.probe_duration(out)
+            is_true(abs(dur_long - 1.5) < 0.15,
+                    f"长素材未被压缩: 得到 {dur_long:.2f}s, 目标 1.5s "
+                    f"(5 秒素材原样进成片会让音画错位)")
+            out.unlink(missing_ok=True)
+            return (f"0.5s→{dur_short:.2f}s (拉伸), "
+                    f"5.0s→{dur_long:.2f}s (压缩)")
         finally:
+            out.unlink(missing_ok=True)
             shutil.rmtree(tmp, ignore_errors=True)
 
-    c("帧序列规整到精确时长", frames_to_exact_duration)
+    c("帧序列规整到精确时长(长短两向)", frames_to_exact_duration)
 
     def missing_material_is_reported():
         """录制素材缺失时必须**报出来**, 而不是静默少一段.

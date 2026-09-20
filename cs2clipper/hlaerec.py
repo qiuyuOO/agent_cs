@@ -439,8 +439,15 @@ def build_cs2_config(
     22 段 = 22 次 exec + 22 次按键, 全程可见, 出问题立刻能发现。
 
     只使用 AfxHookSource2.dll 帮助文本里**确定存在**的命令:
-    `mirv_streams record name/fps/start/end`、`mirv_skip time to`、
-    `demo_pause/demo_resume`、`playdemo`、`spec_player`、`bind`。
+    `mirv_streams record screen enabled`、`record name/fps/format/startMovieWav/
+    start/end`、`mirv_skip time to`、`demo_pause/demo_resume`、`playdemo`、
+    `spec_player`、`bind`。
+
+    ⚠️ **必须显式打开画面流**: DLL 帮助文本写着
+        "%s enabled 0|1 - Disable (0, default) or enable (1) game screen recording."
+    也就是**默认是关的**。第一版只设了 record name/fps 就 start, 结果三个 take
+    里只有 audio.wav、一帧画面都没有 —— 这是实测踩到的坑, 所以引导脚本里
+    第一条固定是 `mirv_streams record screen enabled 1`。
     """
     segs = list(plan[start_index:])
     name_prefix = Path(output_dir).name or "hlae_record"
@@ -461,10 +468,20 @@ def build_cs2_config(
     bootstrap.append("// 只改末尾的数字; 或者用下面的 bind 把「停录」固定到 F8。")
     bootstrap.append("")
     bootstrap.append(CERTAIN_PREFIX)
-    bootstrap.append(f'mirv_streams record fps {int(fps)}')
+    # 画面流默认是关的 (DLL: "Disable (0, default) or enable (1)")。不打开的话
+    # 录出来只有 audio.wav、一帧画面都没有 —— 实测踩过。
+    bootstrap.append("mirv_streams record screen enabled 1")
+    # 音频另配 (我们最后统一铺音乐, 不需要录到的游戏音)
+    bootstrap.append("mirv_streams record startMovieWav 0")
+    bootstrap.append("mirv_streams record format tga")
+    bootstrap.append(f'mirv_streams record name "{name_prefix}"')
+    bootstrap.append(f"mirv_streams record fps {int(fps)}")
     bootstrap.append("bind F8 \"exec cs2clipper_stop.cfg\"")
     bootstrap.append("")
-    bootstrap.append("// 先把 demo 放起来 (路径里的反斜杠写成双反斜杠)")
+    bootstrap.append("// 确认流已经打开 (应能看到 screen 流且 enabled=1)")
+    bootstrap.append("mirv_streams print")
+    bootstrap.append("")
+    bootstrap.append("// 先把 demo 放起来 (路径里的反斜杠写成双斜杠)")
     bootstrap.append(f'playdemo "{demo_path}"')
     bootstrap.append("")
     if include_optional:
@@ -651,30 +668,82 @@ def _match_stream(seg: "RecSegment", names) -> str | None:
     return None
 
 
+def cs2_work_dirs() -> list[Path]:
+    """CS2 实际的工作目录 —— `mirv_streams record name` 的**相对路径基准**.
+
+    实测教训: 引导脚本里给的是绝对路径 `E:\\agent_cs\\work\\hlae_record`,
+    但 HLAE 仍把帧写到了
+        <游戏>\\game\\bin\\win64\\<name>\\
+    也就是**把 record name 当成相对路径**处理 (相对 CS2 的工作目录, 而
+    HLAE 启动 CS2 时的工作目录就是 win64)。所以探测录制产物时必须把这些
+    位置也算进去, 否则"其实录到了, 但流水线说没有素材"。
+    """
+    out: list[Path] = []
+    cs2 = find_cs2_exe()
+    if cs2 is not None:
+        out.append(cs2.parent)                       # ...\game\bin\win64
+        out.append(cs2.parents[2])                   # ...\game
+    return out
+
+
 def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
     """看录制目录里有什么 —— 用来判断"录成功了没".
 
-    HLAE 的 mirv_streams 会按 stream 名建子目录, 里面是**帧序列** (默认 tga/bmp)
-    或 ffmpeg 编码后的视频。两种都要能认出来。
+    HLAE 的 mirv_streams 会按 stream 名建目录, 里面再按 take 分子目录:
+        <name>/take0000/frame_00000000.tga ...
+    所以要往下钻一层找帧序列; 同时也会认已经编码好的视频文件。
+
+    **两个位置都找**: 配置的输出目录, 以及 CS2 自己的工作目录 (相对路径会把
+    产物丢在那里)。只查前者会出现"录到了却报没有素材"。
     """
-    d = Path(output_dir)
-    res: dict[str, Any] = {"dir": str(d), "exists": d.is_dir(),
-                           "frame_dirs": [], "videos": [], "total_frames": 0}
-    if not d.is_dir():
-        return res
-    for sub in sorted(d.iterdir()):
-        if sub.is_dir():
-            frames = [f for f in sub.iterdir() if f.suffix.lower() in IMAGE_EXT]
-            if frames:
-                res["frame_dirs"].append({
-                    "name": sub.name, "frames": len(frames),
-                    "first": sorted(f.name for f in frames)[0],
-                    "ext": frames[0].suffix.lower(),
-                })
-                res["total_frames"] += len(frames)
-        elif sub.suffix.lower() in VIDEO_EXT:
-            res["videos"].append({"name": sub.name,
-                                  "bytes": sub.stat().st_size})
+    roots: list[Path] = [Path(output_dir)]
+    for d in cs2_work_dirs():
+        roots.append(d)
+        roots.append(d / Path(str(output_dir)).name)
+
+    res: dict[str, Any] = {
+        "dir": str(output_dir), "exists": False,
+        "searched": sorted({str(r) for r in roots}),
+        "frame_dirs": [], "videos": [], "total_frames": 0,
+    }
+    seen: set[str] = set()
+
+    for root in roots:
+        if not root.is_dir():
+            continue
+        res["exists"] = True
+        # 候选: root 下的一级目录 (stream 名), 以及 root 自身 (帧直接放这儿)
+        cands = [root] + [p for p in sorted(root.iterdir()) if p.is_dir()]
+        for stream_dir in cands:
+            # take 子目录优先; 没有 take 就直接用 stream_dir
+            takes = [p for p in sorted(stream_dir.iterdir())
+                     if p.is_dir() and p.name.lower().startswith("take")]
+            for holder in (takes or [stream_dir]):
+                try:
+                    entries = list(holder.iterdir())
+                except OSError:
+                    continue
+                frames = [f for f in entries if f.suffix.lower() in IMAGE_EXT]
+                if frames:
+                    key = str(holder)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    res["frame_dirs"].append({
+                        "name": stream_dir.name, "take": holder.name,
+                        "path": key, "frames": len(frames),
+                        "first": sorted(f.name for f in frames)[0],
+                        "ext": frames[0].suffix.lower(),
+                    })
+                    res["total_frames"] += len(frames)
+                for f in entries:
+                    if f.suffix.lower() in VIDEO_EXT and f.is_file():
+                        key = str(f)
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        res["videos"].append({"name": f.name, "path": key,
+                                              "bytes": f.stat().st_size})
     return res
 
 
@@ -706,8 +775,13 @@ def frames_to_clip(
 
     变速逻辑: HLAE 按"录制 fps"抓帧, 一段 demo 里 t 秒的素材会得到约
     `t * capture_fps` 帧。要在成片里占 `target_duration` 秒, 就用
-    `setpts=PTS * (录制时长 / 目标时长)` 整体重采样 —— 这就是慢放/快放,
-    且**时长严格等于 EDL 要求**, 与 compose.finalize_clip 的契约一致。
+    `setpts=PTS * (录制时长 / 目标时长)` 整体重采样 —— 这就是慢放/快放。
+
+    **两种情况都要处理**, 因为录制素材的长度由人工按停录键的时机决定:
+      * 录短了 → 慢放拉伸 (setpts 放大)
+      * 录长了 → 快放压缩 (setpts 缩小)。实测第一次录制留下 5165 帧 / 86.08 秒,
+        而该片段只需要 3.6 秒 —— 只补不裁的 finalize_clip 处理不了这种超长素材,
+        86 秒会原样进成片。所以这里用 compose.fit_clip (两端都管)。
 
     用 ffmpeg 的 image2 demuxer 读帧序列, 不引入 imageio/PIL 逐帧读取
     (一秒 60 帧、一段 4 秒就是 240 张 1080p 图, 走 Python 循环会明显变慢)。
@@ -718,7 +792,6 @@ def frames_to_clip(
     if not frames:
         raise FileNotFoundError(f"目录里没有帧序列: {frame_dir}")
 
-    ext = frames[0].suffix.lower()
     first = frames[0].name
     m = re.search(r"(\d+)(?=\D*$)", first)
     start_number = int(m.group(1)) if m else 0
@@ -739,11 +812,14 @@ def frames_to_clip(
         str(raw),
     ], desc=f"encode frames {frame_dir.name}")
 
-    # 再规整到精确时长 (变速 + 必要时代码补帧)
-    return compose.finalize_clip(
-        raw, out_path, target_duration=target_duration, size=(W, H),
-        crf=crf, preset=preset,
-    )
+    # 再拉伸/压缩到精确时长 (两端都处理)
+    try:
+        return compose.fit_clip(
+            raw, out_path, target_duration=target_duration, size=(W, H),
+            crf=crf, preset=preset,
+        )
+    finally:
+        raw.unlink(missing_ok=True)
 
 
 def _ffmpeg(cmd: list[str], *, desc: str = "") -> None:
@@ -773,7 +849,14 @@ def build_from_recordings(
     clips_dir = Path(clips_dir)
     clips_dir.mkdir(parents=True, exist_ok=True)
     found = discover_recordings(record_dir)
-    by_name = {d["name"]: d for d in found["frame_dirs"]}
+    # name -> [该 stream 的全部 take, 按 take 名排序]。一个 stream 会有多个 take
+    # (每按一次 record start 就开一个新 take), 全部按顺序拼起来当素材:
+    # 这样即使某次按 F8 早了/晚了, 素材也够长, 由 fit_clip 压缩到目标时长。
+    by_name: dict[str, list[dict[str, Any]]] = {}
+    for d in found["frame_dirs"]:
+        by_name.setdefault(d["name"], []).append(d)
+    for v in by_name.values():
+        v.sort(key=lambda x: x.get("take", ""))
     videos = {v["name"]: v for v in found["videos"]}
 
     items: list[compose.ConcatItem] = []
@@ -794,7 +877,9 @@ def build_from_recordings(
         hit = _match_stream(seg, by_name)
         if hit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
-            frames_to_clip(record_dir / hit, out, fps=fps,
+            takes = by_name[hit]
+            src = Path(takes[0]["path"])
+            frames_to_clip(src, out, fps=fps,
                            target_duration=seg.out_duration, size=size)
             items.append(_item(seg, out))
             continue
@@ -806,7 +891,8 @@ def build_from_recordings(
             actual = compose.probe_duration(src)
             notes.append(f"{seg.name}: 用录好的视频 {vhit} ({actual:.2f}s), "
                          f"目标 {seg.out_duration:.2f}s")
-            compose.finalize_clip(src, out, target_duration=seg.out_duration, size=size)
+            # 同样用 fit_clip: 录好的视频也可能比目标长 (取决于停录时机)
+            compose.fit_clip(src, out, target_duration=seg.out_duration, size=size)
             items.append(_item(seg, out))
             continue
 
