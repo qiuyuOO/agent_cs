@@ -187,6 +187,50 @@ def fit_clip(
     return out_path
 
 
+def trim_clip(
+    src_path: str | Path,
+    out_path: str | Path,
+    *,
+    target_duration: float,
+    size: tuple[int, int] | None = None,
+    crf: int = 20,
+    preset: str = "medium",
+) -> Path:
+    """只取**开头** target_duration 秒, 不做时间重采样.
+
+    为什么要单独有这么一条 (而不是一律用 fit_clip): 录制的起点是**对齐片段起点**
+    的 (`mirv_skip time to <开始>` 之后才 record start), 所以当操作者按 F8 晚了
+    —— 这是最常见的失误, 实测有一次留下 57.75 秒而目标只有 9.00 秒 —— 正确的
+    做法是"掐掉多余的尾巴", 而不是把整整 57.75 秒压成 9 秒。后者会把 6.4 倍的
+    快进糊在整个片段上, 动作全看不清; 前者画面节奏完全不变。
+
+    短于目标时长时仍然只能用 fit_clip 拉伸 (要满足"严格等于 EDL 时长"的契约)。
+    """
+    ffmpeg = config.require_ffmpeg()
+    src_path, out_path = Path(src_path), Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    dur = max(target_duration, 0.05)
+    W, H = size or config.aspect_size(config.DEFAULT_ASPECT)
+    vf = (f"setpts=PTS-STARTPTS,"
+          f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
+          f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2,format=yuv420p")
+    _run(
+        [
+            ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+            "-i", str(src_path),
+            "-vf", vf,
+            "-t", f"{dur:.3f}",
+            "-r", str(config.FPS),
+            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
+            "-pix_fmt", "yuv420p", "-an",
+            "-movflags", "+faststart",
+            str(out_path),
+        ],
+        desc=f"trim {out_path.name} (-> {dur:.2f}s)",
+    )
+    return out_path
+
+
 def finalize_clip(
     raw_path: str | Path,
     out_path: str | Path,

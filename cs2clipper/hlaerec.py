@@ -1121,8 +1121,13 @@ def frames_to_clip(
     size: tuple[int, int] | None = None,
     crf: int = 20,
     preset: str = "medium",
+    max_seconds: float | None = None,
 ) -> Path:
     """帧序列 → 精确时长的无音轨 mp4 (与雷达路径输出契约一致).
+
+    `max_seconds`: 只取开头的这些秒 (对应"按 F8 晚了, 素材比目标长得多")。
+    和视频路径一样, 这种情况要**掐尾巴**而不是把长素材压成快进 —— 录制起点是
+    对齐片段起点的, 开头那段才是我们要的。
 
     变速逻辑: HLAE 按"录制 fps"抓帧, 一段 demo 里 t 秒的素材会得到约
     `t * capture_fps` 帧。要在成片里占 `target_duration` 秒, 就用
@@ -1153,15 +1158,19 @@ def frames_to_clip(
     W, H = size or _default_size(None)
 
     # 先把帧序列编码成"捕获帧率"下的视频
-    _ffmpeg([
+    encode = [
         ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
         "-framerate", str(int(fps)),
         "-start_number", str(start_number),
         "-i", str(frame_dir / pattern),
         "-vf", "format=yuv420p",
         "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-        str(raw),
-    ], desc=f"encode frames {frame_dir.name}")
+    ]
+    if max_seconds is not None and max_seconds > 0:
+        # 只编码开头的帧 (掐尾巴), 免得把超长素材整体压成快进
+        encode += ["-frames:v", str(max(int(max_seconds * fps), 1))]
+    encode.append(str(raw))
+    _ffmpeg(encode, desc=f"encode frames {frame_dir.name}")
 
     # 再拉伸/压缩到精确时长 (两端都处理)
     try:
@@ -1269,8 +1278,17 @@ def build_from_recordings(
             if len(takes) > 1:
                 notes.append(f"{seg.name}: 有 {len(takes)} 个 take, 取帧最多的 "
                              f"{best['take']} ({best['frames']} 帧)")
+            mat_sec = int(best.get("frames") or 0) / max(int(fps), 1)
+            cap = None
+            if mat_sec > seg.out_duration * 1.10:
+                cap = seg.out_duration
+                notes.append(
+                    f"{seg.name}: 素材 {mat_sec:.2f}s 比目标 {seg.out_duration:.2f}s "
+                    f"长 (按 F8 晚了?) —— 已掐掉尾巴"
+                )
             frames_to_clip(src, out, fps=fps,
-                           target_duration=seg.out_duration, size=size)
+                           target_duration=seg.out_duration, size=size,
+                           max_seconds=cap)
             items.append(_item(seg, out))
             continue
 
@@ -1278,13 +1296,40 @@ def build_from_recordings(
         if vhit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
             cands = by_video[vhit]
-            src = _best_video(cands)
+            # 先滤掉读不出来的 take。真实情况: 用户直接关掉游戏 / 没按 F8,
+            # HLAE 没来得及写 moov atom, 于是留下一个几十 MB 但**无法解码**的
+            # mp4 (实测 take0002 就是这样)。这种文件拿去渲染只会抛一句
+            # "moov atom not found", 完全看不出该做什么。
+            good = [c for c in cands if _safe_duration(c["path"]) > 0]
+            broken = [c for c in cands if c not in good]
+            if broken:
+                notes.append(
+                    f"{seg.name}: 跳过 {len(broken)} 个读不出来的 take "
+                    f"({', '.join(c['name'] for c in broken[:3])}) —— "
+                    f"多半是录制没收尾, 记得按 F8 或别直接关游戏"
+                )
+            if not good:
+                notes.append(f"{seg.name}: {len(cands)} 个 take 全都读不出来, 已跳过")
+                continue
+            src = _best_video(good)
             actual = _safe_duration(src)
-            extra = f", 共 {len(cands)} 个 take 取最长的" if len(cands) > 1 else ""
+            extra = f", 共 {len(good)} 个可用 take 取最长的" if len(good) > 1 else ""
             notes.append(f"{seg.name}: 用录好的视频 {src.name} ({actual:.2f}s), "
                          f"目标 {seg.out_duration:.2f}s{extra}")
-            # 同样用 fit_clip: 录好的视频也可能比目标长 (取决于停录时机)
-            compose.fit_clip(src, out, target_duration=seg.out_duration, size=size)
+            # 录长了要**掐尾巴**, 不是压缩: 录制起点是对齐片段起点的, 所以开头
+            # target 秒就是我们要的那一段。把 57.75s 压成 9s 会把 6.4 倍快进糊满
+            # 整个片段 (实测的失误就是这样), 掐尾巴则完全不影响节奏。
+            if actual > seg.out_duration * 1.10:
+                drop = actual - seg.out_duration
+                notes.append(
+                    f"{seg.name}: 素材比目标长 {drop:.2f}s (按 F8 晚了?) —— "
+                    f"已掐掉尾巴, 只取开头 {seg.out_duration:.2f}s"
+                )
+                compose.trim_clip(src, out, target_duration=seg.out_duration,
+                                  size=size)
+            else:
+                compose.fit_clip(src, out, target_duration=seg.out_duration,
+                                 size=size)
             items.append(_item(seg, out))
             continue
 

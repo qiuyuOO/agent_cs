@@ -3036,6 +3036,61 @@ def test_hlae(c: Check) -> None:
 
     c("真机落盘形态 + 资源目录不干扰", real_layout_and_asset_noise)
 
+    def long_take_is_trimmed_not_squeezed():
+        """录长了要**掐尾巴**, 读不出来的 take 要跳过并说清原因.
+
+        两个都是真机录制暴露出来的:
+        * 按 F8 晚了 —— 实测留下 **57.75 秒**而目标只有 9.00 秒。旧行为是把
+          57.75s 压成 9s = 6.4 倍快进糊满整个片段, 动作全看不清; 正确做法是
+          掐尾巴 (录制起点本来就对齐片段起点, 开头 9 秒才是要的那段)。
+        * 没按 F8 直接关游戏 —— HLAE 来不及写 moov atom, 留下一个几十 MB 但
+          **无法解码**的 mp4 (实测 take0002 就是)。拿去渲染只会抛一句
+          "moov atom not found", 完全看不出该做什么。
+        """
+        tmp = config.WORK_DIR / "_hlae_longtake"
+        seed = config.WORK_DIR / "_hlae_longseed"
+        for d in (tmp, seed):
+            shutil.rmtree(d, ignore_errors=True)
+        stream = tmp / "_hlae_rec_clip_001"
+        good_dir = stream / "take0000" / "cs2clipper"
+        bad_dir = stream / "take0001" / "cs2clipper"
+        good_dir.mkdir(parents=True, exist_ok=True)
+        bad_dir.mkdir(parents=True, exist_ok=True)
+        seed.mkdir(parents=True, exist_ok=True)
+        try:
+            with isolated_cs2_dirs():
+                # 6 秒素材 (目标 1.0 秒 -> 必须掐尾巴)
+                for i in range(360):
+                    Image.new("RGB", (160, 90), (i * 3 % 256, 40, 70)).save(
+                        seed / f"frame_{i:08d}.png")
+                H.frames_to_clip(seed, good_dir / "video.mp4", fps=60,
+                                 target_duration=6.0, size=(160, 90))
+                # 读不出来的半截文件 (模拟 moov 缺失)
+                (bad_dir / "video.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42"
+                                                    + b"\x00" * 4096)
+
+                plan = [H.RecSegment(index=0, highlight_id="a", player="P",
+                                     round_num=1, demo_start_sec=0.0,
+                                     demo_end_sec=1.0, out_duration=1.0,
+                                     speed=1.0, name="clip_001")]
+                items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
+                                                       fps=60, size=(160, 90))
+                joined = " | ".join(notes)
+                is_true(len(items) == 1, f"没产出片段: {notes}")
+                is_true(any("掐掉尾巴" in n for n in notes),
+                        f"超长素材没有被掐尾巴: {notes}")
+                is_true(any("读不出来" in n for n in notes),
+                        f"坏 take 没有被报出来: {notes}")
+                got = compose.probe_duration(items[0].path) if items else 0.0
+                is_true(abs(got - 1.0) < 0.15,
+                        f"掐完之后时长不对: {got:.2f}s, 目标 1.00s")
+            return f"6.00s 素材 -> {got:.2f}s (掐尾巴); 坏 take 已跳过"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(seed, ignore_errors=True)
+
+    c("超长素材掐尾巴 + 坏 take 跳过", long_take_is_trimmed_not_squeezed)
+
     def missing_material_is_reported():
         """录制素材缺失时必须**报出来**, 而不是静默少一段.
 
