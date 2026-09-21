@@ -2594,6 +2594,41 @@ def test_hlae(c: Check) -> None:
 
     c("CS2 安装按体积择优", cs2_pick_largest_install)
 
+    def ffmpeg_is_provided_to_hlae():
+        """HLAE 的外部 ffmpeg 必须真的配好.
+
+        真实缺陷 (用户真机第三次录制暴露): HLAE 的 `ffmpeg` 目录**默认是空的**,
+        只有一个 readme; 而 afxFfmpeg* 预设依赖外部 ffmpeg。表现是
+        "流建起来了 (print 显示 1 个流)、take 目录也建了, 但控制台一直刷
+        AFXERROR: Failed writing image for screen recording., 一个画面都不落盘"
+        —— 看起来在录, 其实全丢。体检必须把这一项查出来, 并且
+        setup_hlae_ffmpeg 要能一键配好。
+        """
+        exe = H.find_ffmpeg_for_hlae()
+        is_true(exe is not None, "找不到任何可用的 ffmpeg.exe")
+        ok, have = H.ffmpeg_supports_hlae_encoders(exe)
+        is_true(ok, f"{exe} 缺少 afxFfmpeg* 需要的编码器 (有 {have})")
+
+        # 用临时目录测 setup, **不要动真实 HLAE 安装**
+        base = config.WORK_DIR / "_hlae_ffmpeg_setup"
+        shutil.rmtree(base, ignore_errors=True)
+        try:
+            ini, _note = H.setup_hlae_ffmpeg(exe, hlae_path=base)
+            is_true(ini.is_file(), f"没有写出 ffmpeg.ini: {ini}")
+            text = ini.read_text(encoding="utf-8")
+            is_true("[Ffmpeg]" in text and "Path=" in text,
+                    f"ffmpeg.ini 格式不对 (readme 要求 [Ffmpeg]/Path): {text!r}")
+            is_true(str(exe) in text, "ffmpeg.ini 里的路径不对")
+            # 体检必须把这一项报出来
+            pf = H.preflight(check_running=False)
+            is_true("hlae_ffmpeg" in pf.info or "hlae_ffmpeg_ini" in pf.info,
+                    "体检没有检查 HLAE 用的 ffmpeg")
+            return f"ffmpeg={Path(exe).name}, 编码器 {have}; ini 格式正确"
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+
+    c("HLAE 的外部 ffmpeg 已配置", ffmpeg_is_provided_to_hlae)
+
     def plan_math():
         """EDL → 录制计划的时间换算与变速比必须自洽."""
         class Clip:

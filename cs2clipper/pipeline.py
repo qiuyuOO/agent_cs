@@ -789,6 +789,12 @@ def main(argv: list[str] | None = None) -> int:
         "--hlae-gen-cfg", action="store_true",
         help="按当前音乐/demo 生成录制计划与 CS2 cfg (不渲染, 不录制) 后退出",
     )
+    ap.add_argument(
+        "--hlae-setup-ffmpeg", action="store_true",
+        help="把项目自带的 ffmpeg 路径写给 HLAE (写 ffmpeg.ini) 后退出 —— "
+             "afxFfmpeg* 录制预设依赖它, 没配会一路报 "
+             "'Failed writing image for screen recording'",
+    )
 
     # --- 偏好管理 ---
     ap.add_argument("--set", nargs="+", metavar="KEY VALUE",
@@ -835,6 +841,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"已写入 HLAE 配置: {cfg}")
         print(f"  改动: {note}")
         print("\n再跑一次 --hlae-check 确认体检全绿。")
+        return 0
+
+    if args.hlae_setup_ffmpeg:
+        try:
+            ini, note = hlaerec.setup_hlae_ffmpeg()
+        except (FileNotFoundError, RuntimeError) as e:
+            print(f"[失败] {e}")
+            return 1
+        print(f"已写入 {ini}")
+        print(f"  {note}")
+        print("\n注意: 需要**重启 CS2** 才会生效 (HLAE 在注入时读这个配置)。")
         return 0
 
     # ---------- 偏好管理子命令 ----------

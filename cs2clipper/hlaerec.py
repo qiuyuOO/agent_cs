@@ -191,6 +191,81 @@ def hlae_config_path() -> Path:
     return Path.home() / "AppData" / "Roaming" / "HLAE" / "hlaeconfig.xml"
 
 
+#: HLAE 放外部 ffmpeg 的地方: `<HLAE>/ffmpeg/`。
+#: 它的 readme.advancedfx.txt 明确写了两种提供方式:
+#:   A) 把 ffmpeg 的 bin/ 放进 `<HLAE>/ffmpeg/`, 即 `<HLAE>/ffmpeg/bin/ffmpeg.exe`
+#:   B) 在同目录建 ffmpeg.ini, 内容:
+#:        [Ffmpeg]
+#:        Path=<绝对路径>\ffmpeg.exe
+HLAE_FFMPEG_INI = "[Ffmpeg]\nPath={path}\n"
+#: afxFfmpeg* 预设所需的编码器 (yuv420p / lossless / prores)
+FFMPEG_NEEDED_ENCODERS = ("libx264", "libx264rgb", "prores_ks")
+
+
+def find_ffmpeg_for_hlae() -> Path | None:
+    """找一个能给 HLAE 用的 ffmpeg.exe (项目自带的优先)."""
+    cands = [config.FFMPEG, config.ROOT / "tools" / "ffmpeg" / "bin" / "ffmpeg.exe"]
+    for c in cands:
+        p = Path(str(c)) if c else None
+        if p and p.is_file():
+            return p
+    return None
+
+
+def ffmpeg_supports_hlae_encoders(exe: Path) -> tuple[bool, list[str]]:
+    """确认这个 ffmpeg 带 afxFfmpeg* 预设要用的编码器.
+
+    实测教训: HLAE 的 `ffmpeg` 目录**默认是空的** (只有一个 readme), 而
+    `afxFfmpegYuv420p` 这类预设**依赖外部 ffmpeg**。没配好的表现是
+    "流建起来了、take 目录也建了, 但控制台刷
+     `AFXERROR: Failed writing image for screen recording.`、一个画面都没落盘" ——
+    看起来在录, 其实全丢。
+    """
+    import subprocess
+
+    try:
+        r = subprocess.run([str(exe), "-hide_banner", "-encoders"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return False, []
+    text = r.stdout or ""
+    have = [e for e in FFMPEG_NEEDED_ENCODERS if e in text]
+    return len(have) == len(FFMPEG_NEEDED_ENCODERS), have
+
+
+def setup_hlae_ffmpeg(ffmpeg_exe: str | Path | None = None,
+                      hlae_path: str | Path | None = None) -> tuple[Path, str]:
+    """把 ffmpeg 路径写给 HLAE (写 ffmpeg.ini, 指向绝对路径).
+
+    用 readme 里的方式 B: 不用复制几十 MB, 升级 ffmpeg 时也只改这一个文件。
+
+    Args:
+        ffmpeg_exe: 要用哪个 ffmpeg; 默认自动找 (项目自带的优先)。
+        hlae_path: HLAE 目录; 默认按配置取。**测试时传临时目录**, 免得改到真实安装。
+
+    Returns:
+        (写入的文件路径, 说明)
+    """
+    base = Path(hlae_path) if hlae_path else hlae_dir()
+    d = base / "ffmpeg"
+    d.mkdir(parents=True, exist_ok=True)
+    exe = Path(ffmpeg_exe) if ffmpeg_exe else find_ffmpeg_for_hlae()
+    if exe is None or not exe.is_file():
+        raise FileNotFoundError(
+            "找不到可用的 ffmpeg.exe; 可显式传路径, 或把 ffmpeg 解压到 "
+            f"{d} 下 (使其成为 {d / 'bin' / 'ffmpeg.exe'})"
+        )
+    ok, have = ffmpeg_supports_hlae_encoders(exe)
+    ini = d / "ffmpeg.ini"
+    ini.write_text(HLAE_FFMPEG_INI.format(path=exe), encoding="utf-8")
+    note = f"ffmpeg.ini -> {exe} (已有编码器 {have})"
+    if not ok:
+        missing = [e for e in FFMPEG_NEEDED_ENCODERS if e not in have]
+        note += f"; 警告: 缺少 {missing}, afxFfmpeg* 预设可能不可用"
+    return ini, note
+
+
 def set_hlae_cs2_exe(cs2_exe: str | Path | None = None) -> tuple[Path, str]:
     """把 cs2.exe 路径写进 HLAE 的配置, 少让用户手工点一次.
 
@@ -297,6 +372,45 @@ def preflight(*, check_running: bool = True) -> Preflight:
             pf.warnings.append("HLAE 的 AvoidVac 不是 true, 注入可能失败 (需要 -insecure)")
     else:
         pf.warnings.append(f"HLAE 还没生成配置 ({cfg}); 先手动启动一次 HLAE.exe")
+
+    # --- 外部 ffmpeg: afxFfmpeg* 预设的前提 ---
+    # 实测教训: HLAE 的 ffmpeg 目录默认是空的 (只有 readme), 没配的话
+    # 流能建起来、take 目录也建, 但控制台刷
+    #   AFXERROR: Failed writing image for screen recording.
+    # 一个画面都不落盘 —— 看起来在录, 其实全丢。这一条必须在**开录之前**报出来。
+    ff_dir = hlae_dir() / "ffmpeg"
+    ini = ff_dir / "ffmpeg.ini"
+    bundled = ff_dir / "bin" / "ffmpeg.exe"
+    pf.info["hlae_ffmpeg_ini"] = str(ini) if ini.is_file() else None
+    pf.info["hlae_ffmpeg_bundled"] = bundled.is_file()
+    if not ini.is_file() and not bundled.is_file():
+        pf.problems.append(
+            f"HLAE 没有可用的 ffmpeg: {ff_dir} 下既没有 bin/ffmpeg.exe 也没有 "
+            f"ffmpeg.ini。afxFfmpeg* 预设依赖外部 ffmpeg, 缺了会一路刷 "
+            f"'AFXERROR: Failed writing image for screen recording.' 且录不到任何画面。"
+            f" 修法: python -m cs2clipper.pipeline --hlae-setup-ffmpeg"
+        )
+    else:
+        target = bundled
+        if ini.is_file():
+            try:
+                m2 = re.search(r"Path\s*=\s*(.+)", ini.read_text(encoding="utf-8"))
+                if m2:
+                    target = Path(m2.group(1).strip())
+            except OSError:
+                pass
+        if not Path(target).is_file():
+            pf.problems.append(f"ffmpeg.ini 指向的 ffmpeg 不存在: {target}")
+        else:
+            ok_enc, have = ffmpeg_supports_hlae_encoders(Path(target))
+            pf.info["hlae_ffmpeg"] = str(target)
+            pf.info["hlae_ffmpeg_encoders"] = have
+            if not ok_enc:
+                missing = [e for e in FFMPEG_NEEDED_ENCODERS if e not in have]
+                pf.warnings.append(
+                    f"HLAE 用的 ffmpeg ({target}) 缺少编码器 {missing}; "
+                    f"afxFfmpeg* 预设可能失败"
+                )
 
     if check_running:
         run = procs_running()
