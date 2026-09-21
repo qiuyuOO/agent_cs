@@ -2788,6 +2788,63 @@ def test_hlae(c: Check) -> None:
 
     c("帧序列规整到精确时长(长短两向)", frames_to_exact_duration)
 
+    def ffmpeg_preset_output_is_usable():
+        """ffmpeg 类预设录出来的**视频文件**必须能被流水线吃下去.
+
+        真实缺陷 (真机录制前夜发现): 引导脚本用的是
+        `mirv_streams edit cs2clipper settings afxFfmpegYuv420p`, 这个预设在 take
+        目录里写的是 `take0000/take0000.mp4` 这种**已编码文件**, 而不是
+        `frame_00000000.tga` 帧序列。
+
+        而 build_from_recordings 原来把视频按**文件名**归类
+        (`{"take0000.mp4": {...}}`), 再拿片段名 `clip_001` 去匹配 —— 文件名和
+        片段名毫无关系, 于是**真录成功也会被判成"没有素材"**, 一段都出不来。
+        同一处的第二个错: `src = record_dir / vhit` 拼出来的路径并不存在
+        (视频在 stream 目录的 take 子目录里)。
+
+        所以这里造一个真实形态的 take 目录, 要求: 认得出、匹配得上、产出精确时长。
+        """
+        tmp = config.WORK_DIR / "_hlae_video_probe"
+        seed = config.WORK_DIR / "_hlae_video_seed"
+        shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(seed, ignore_errors=True)
+        # 真实形态: <root>/<record name>/takeNNNN/takeNNNN.mp4
+        stream = tmp / "_hlae_route_rec_clip_001"
+        take = stream / "take0000"
+        take.mkdir(parents=True, exist_ok=True)
+        seed.mkdir(parents=True, exist_ok=True)
+        src = take / "take0000.mp4"
+        try:
+            # 先用帧序列造一个真实的 1.0 秒 mp4 当"录下来的素材"
+            for i in range(60):
+                Image.new("RGB", (160, 90), (i * 4 % 256, 30, 60)).save(
+                    seed / f"frame_{i:08d}.png")
+            H.frames_to_clip(seed, src, fps=60, target_duration=1.0,
+                             size=(160, 90))
+
+            found = H.discover_recordings(tmp)
+            is_true(len(found["videos"]) == 1,
+                    f"没认出 take 目录里的 mp4: {found['videos']}")
+            is_true(found["videos"][0].get("stream") == "_hlae_route_rec_clip_001",
+                    f"视频条目没带 stream 名, 无法回对片段: {found['videos'][0]}")
+
+            plan = [H.RecSegment(index=0, highlight_id="a", player="P", round_num=1,
+                                 demo_start_sec=0.0, demo_end_sec=1.0,
+                                 out_duration=0.8, speed=1.0, name="clip_001")]
+            items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
+                                                   fps=60, size=(160, 90))
+            is_true(len(items) == 1,
+                    f"录好的视频没能变成片段 (真录成功会白录): {notes}")
+            got = compose.probe_duration(items[0].path) if items else 0.0
+            is_true(abs(got - 0.8) < 0.15,
+                    f"视频素材没被规整到目标时长: {got:.2f}s, 目标 0.80s")
+            return f"stream 名归类正确, 1.00s 视频 → {got:.2f}s 片段 (目标 0.80s)"
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(seed, ignore_errors=True)
+
+    c("ffmpeg 预设的视频产物能接回流水线", ffmpeg_preset_output_is_usable)
+
     def missing_material_is_reported():
         """录制素材缺失时必须**报出来**, 而不是静默少一段.
 

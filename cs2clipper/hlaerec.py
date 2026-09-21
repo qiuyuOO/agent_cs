@@ -844,8 +844,9 @@ def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
     **两个位置都找**: 配置的输出目录, 以及 CS2 自己的工作目录 (相对路径会把
     产物丢在那里)。只查前者会出现"录到了却报没有素材"。
     """
-    roots: list[Path] = [Path(output_dir)]
+    roots: list[Path] = [Path(output_dir).resolve()]
     for d in cs2_work_dirs():
+        d = Path(d).resolve()
         roots.append(d)
         roots.append(d / Path(str(output_dir)).name)
 
@@ -890,7 +891,13 @@ def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
                         if key in seen:
                             continue
                         seen.add(key)
+                        # `stream` 才是回对片段用的键。`name` 只是文件名
+                        # (ffmpeg 类预设写出的是 `take0000/take0000.mp4`),
+                        # 拿文件名去匹配 `clip_001` 永远匹配不上 —— 真录完了
+                        # 也会被判成"没有素材"。
                         res["videos"].append({"name": f.name, "path": key,
+                                              "stream": stream_dir.name,
+                                              "take": holder.name,
                                               "bytes": f.stat().st_size})
     return res
 
@@ -980,6 +987,30 @@ def _ffmpeg(cmd: list[str], *, desc: str = "") -> None:
         raise RuntimeError(f"ffmpeg 失败 ({desc}):\n{tail}")
 
 
+def _safe_duration(path: str | Path) -> float:
+    """探时长, 失败就返回 0.0 —— 只用来在多个 take 之间排序, 不值得抛异常."""
+    try:
+        return compose.probe_duration(path)
+    except Exception:                                  # noqa: BLE001
+        return 0.0
+
+
+def _best_video(cands: Sequence[dict[str, Any]]) -> Path:
+    """同一个 stream 有多个 take 时挑一个用.
+
+    停录时机由人工掌握, 所以同一个片段可能有补录出来的好几个 take
+    (`take0000`, `take0001` ...)。取**时长最长**的那个: 它最可能包含完整动作,
+    再由 fit_clip 压/拉到目标时长。时长一个都探不出来时退回编号最大的
+    (take 号越大越新)。
+    """
+    if len(cands) == 1:
+        return Path(cands[0]["path"])
+    best = max(cands, key=lambda v: _safe_duration(v["path"]))
+    if _safe_duration(best["path"]) <= 0:
+        return Path(cands[-1]["path"])
+    return Path(best["path"])
+
+
 def build_from_recordings(
     plan: Sequence[RecSegment],
     record_dir: str | Path,
@@ -998,14 +1029,25 @@ def build_from_recordings(
     clips_dir.mkdir(parents=True, exist_ok=True)
     found = discover_recordings(record_dir)
     # name -> [该 stream 的全部 take, 按 take 名排序]。一个 stream 会有多个 take
-    # (每按一次 record start 就开一个新 take), 全部按顺序拼起来当素材:
-    # 这样即使某次按 F8 早了/晚了, 素材也够长, 由 fit_clip 压缩到目标时长。
+    # (补录, 或某次按 F8 早了/晚了)。
+    #
+    # 只取**帧最多的那个 take** 当素材, 不是把所有 take 拼起来: 各 take 是独立
+    # 目录、帧文件名从 0 重新编号, 硬拼会撞号且顺序无法保证。取最饱满的一个,
+    # 再由 fit_clip 压/拉到目标时长 —— 素材短了慢放、长了快放, 两头都管得住。
     by_name: dict[str, list[dict[str, Any]]] = {}
     for d in found["frame_dirs"]:
         by_name.setdefault(d["name"], []).append(d)
     for v in by_name.values():
         v.sort(key=lambda x: x.get("take", ""))
-    videos = {v["name"]: v for v in found["videos"]}
+
+    # 视频产物同样按 **stream 名** 归类。ffmpeg 类预设 (afxFfmpegYuv420p 等)
+    # 写出来的是 `take0000/take0000.mp4` 这种文件, 文件名跟片段名毫无关系,
+    # 所以键必须是 stream 目录名而不是文件名。
+    by_video: dict[str, list[dict[str, Any]]] = {}
+    for v in found["videos"]:
+        by_video.setdefault(v.get("stream") or v["name"], []).append(v)
+    for v in by_video.values():
+        v.sort(key=lambda x: x.get("take", ""))
 
     items: list[compose.ConcatItem] = []
     notes: list[str] = []
@@ -1026,19 +1068,25 @@ def build_from_recordings(
         if hit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
             takes = by_name[hit]
-            src = Path(takes[0]["path"])
+            best = max(takes, key=lambda t: int(t.get("frames") or 0))
+            src = Path(best["path"])
+            if len(takes) > 1:
+                notes.append(f"{seg.name}: 有 {len(takes)} 个 take, 取帧最多的 "
+                             f"{best['take']} ({best['frames']} 帧)")
             frames_to_clip(src, out, fps=fps,
                            target_duration=seg.out_duration, size=size)
             items.append(_item(seg, out))
             continue
 
-        vhit = _match_stream(seg, videos)
+        vhit = _match_stream(seg, by_video)
         if vhit:
             out = clips_dir / f"clip_{seg.index + 1:03d}.mp4"
-            src = record_dir / vhit
-            actual = compose.probe_duration(src)
-            notes.append(f"{seg.name}: 用录好的视频 {vhit} ({actual:.2f}s), "
-                         f"目标 {seg.out_duration:.2f}s")
+            cands = by_video[vhit]
+            src = _best_video(cands)
+            actual = _safe_duration(src)
+            extra = f", 共 {len(cands)} 个 take 取最长的" if len(cands) > 1 else ""
+            notes.append(f"{seg.name}: 用录好的视频 {src.name} ({actual:.2f}s), "
+                         f"目标 {seg.out_duration:.2f}s{extra}")
             # 同样用 fit_clip: 录好的视频也可能比目标长 (取决于停录时机)
             compose.fit_clip(src, out, target_duration=seg.out_duration, size=size)
             items.append(_item(seg, out))
