@@ -144,15 +144,25 @@ def find_cs2_exe() -> Path | None:
     return max(candidates, key=size_of)
 
 
-def procs_running() -> dict[str, bool]:
-    """CS2 / HLAE / Steam 是否在运行 (Windows, 用 tasklist)."""
-    out = {"cs2": False, "hlae": False, "steam": False}
+def procs_running() -> dict[str, bool | None]:
+    """CS2 / HLAE / Steam 是否在运行 (Windows, 用 tasklist).
+
+    值可以是 **None —— 表示"问不出来", 而不是"没在运行"**。真实教训:
+    `tasklist` 在受限环境 (沙箱 / 安全策略 / 部分杀软) 下直接返回
+    `ERROR: Access denied` 且 stdout 为空, 早先这里把这种情况当成"三个都没在
+    运行", 于是体检报出**假警报** "Steam 没在运行 —— 需要先登录 Steam",
+    让人跑去查一个根本不存在的问题 (实测 CS2/HLAE/Steam 三个进程都活着)。
+    枚举失败时一律返回 None, 由调用方决定要不要提。
+    """
+    out: dict[str, bool | None] = {"cs2": None, "hlae": None, "steam": None}
     try:
         r = subprocess.run(["tasklist", "/fo", "csv", "/nh"],
                            capture_output=True, text=True, encoding="utf-8",
                            errors="replace", timeout=20)
-        text = (r.stdout or "").lower()
     except (OSError, subprocess.SubprocessError):
+        return out
+    text = (r.stdout or "").lower()
+    if r.returncode != 0 or not text.strip():
         return out
     out["cs2"] = "cs2.exe" in text
     out["hlae"] = "hlae.exe" in text
@@ -415,7 +425,10 @@ def preflight(*, check_running: bool = True) -> Preflight:
     if check_running:
         run = procs_running()
         pf.info["running"] = run
-        if not run["steam"]:
+        if run["steam"] is None:
+            # 问不出来就说问不出来 —— 不能当成"没在运行"去报警
+            pf.info["running_note"] = "tasklist 被拒, 未判断进程状态 (不是问题)"
+        elif not run["steam"]:
             pf.warnings.append("Steam 没在运行 —— HLAE 启动 CS2 需要先登录 Steam")
 
     pf.ok = not pf.problems

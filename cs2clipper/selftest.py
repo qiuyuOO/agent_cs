@@ -2581,6 +2581,39 @@ def test_hlae(c: Check) -> None:
 
     c("HLAE 环境体检健壮", preflight_shape)
 
+    def unknown_process_state_is_not_a_warning():
+        """"问不出进程状态" 不能被当成 "进程没在运行".
+
+        真实缺陷: `tasklist` 在受限环境 (沙箱 / 安全策略 / 部分杀软) 下返回
+        `ERROR: Access denied` 且 stdout 为空。早先 procs_running 把这种失败
+        静默当成"三个进程都没在运行", 于是体检报出**假警报**
+        "Steam 没在运行 —— HLAE 启动 CS2 需要先登录 Steam", 把人引去查一个
+        根本不存在的问题 (实测当时 CS2 / HLAE / Steam 三个进程都活着)。
+
+        所以这里把枚举结果强行换成三种状态, 要求: 只有**明确 False** 才报警。
+        """
+        orig = H.procs_running
+        seen = {}
+        try:
+            for label, fake in (("无法判断", {"cs2": None, "hlae": None, "steam": None}),
+                                ("确实没开", {"cs2": False, "hlae": False, "steam": False}),
+                                ("都开着", {"cs2": True, "hlae": True, "steam": True})):
+                H.procs_running = lambda _f=fake: dict(_f)        # type: ignore
+                pf = H.preflight(check_running=True)
+                hit = [w for w in pf.warnings if "Steam" in w]
+                seen[label] = bool(hit)
+                if label == "无法判断":
+                    is_true(not hit, f"枚举失败却报出假警报: {pf.warnings}")
+                elif label == "确实没开":
+                    is_true(bool(hit), "真的没开 Steam 却不提醒")
+                else:
+                    is_true(not hit, f"Steam 开着还报警: {pf.warnings}")
+        finally:
+            H.procs_running = orig                               # type: ignore
+        return "无法判断→不报警 / 没开→报警 / 开着→不报警"
+
+    c("进程状态问不出来时不当成'没在运行'", unknown_process_state_is_not_a_warning)
+
     def cs2_pick_largest_install():
         """多份 CS2 安装时必须挑**体积最大**的那份 (空壳安装真实存在)."""
         exe = H.find_cs2_exe()
