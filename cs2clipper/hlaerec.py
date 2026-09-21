@@ -24,10 +24,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -536,6 +538,9 @@ OPTIONAL_PREFIX = (
     "// ---- 以下为可选项: CS2 与 CS:GO 的 cvar 名不完全一致, 未在本机核实,"
     " 若报 Unknown command 属正常, 删掉那一行即可 ----"
 )
+#: 画面净化那一组。名字都在 CS2 自己的二进制里**整串精确核对**过
+#: (`tools/dev/list_cs2_cmds.py --exact ...`), 不是凭印象写的。
+OVERLAY_PREFIX = "// ---- 画面净化: 去掉控制台覆盖层和回放控制条 ----"
 
 
 #: 画面流的名字 (mirv_streams add normal <这个名字>)。录制产物会落到
@@ -549,6 +554,43 @@ STREAM_NAME = "cs2clipper"
 #: 默认用 Yuv420p: 有损但足够 (成片最后也编码成 yuv420p), 文件比无损小得多。
 #: 想要无损改成 "afxFfmpegLosslessFast"。
 STREAM_SETTINGS = "afxFfmpegYuv420p"
+
+#: SteamID64 与 account id (SteamID32) 的差值。
+#: `spec_lock_to_accountid` 吃的是 account id, demo 里给的是 SteamID64。
+STEAM_ID64_BASE = 76561197960265728
+
+
+@lru_cache(maxsize=2)
+def player_account_ids(demo_path: str) -> dict[str, int]:
+    """玩家名 -> account id (SteamID32), 从 demo 的 player_info 里读.
+
+    为什么要这个: 实测录出来的画面**镜头没跟到目标玩家** (贴地的旁观视角,
+    没有第一人称武器)。计划里的名字和 demo 里的名字已经逐字节核对相同
+    (`tools/dev/check_player_names.py`), 所以问题不在名字本身 —— 最可能是
+    HLAE/CS2 读 cfg 时的编码把中文名弄坏了 (我们写的是 UTF-8)。
+
+    `spec_lock_to_accountid` 只吃一串数字, **纯 ASCII, 完全绕开编码问题**,
+    所以优先用它; 拿不到 ID 时才退回 `spec_player "<名字>"`。
+
+    解析失败一律返回空 dict, 由调用方退回名字方案 —— 不能因为读不到 ID
+    就让整份脚本生成不出来。
+    """
+    try:
+        import demoparser2
+
+        df = demoparser2.DemoParser(str(demo_path)).parse_player_info()
+    except Exception:                                      # noqa: BLE001
+        return {}
+    out: dict[str, int] = {}
+    for row in df.to_dict("records"):
+        try:
+            sid = int(row.get("steamid") or 0)
+        except (TypeError, ValueError):
+            continue
+        name = row.get("name")
+        if name and sid > STEAM_ID64_BASE:
+            out[str(name)] = sid - STEAM_ID64_BASE
+    return out
 
 
 def build_cs2_config(
@@ -648,7 +690,10 @@ def build_cs2_config(
     if include_optional:
         bootstrap.append(OPTIONAL_PREFIX)
         bootstrap.append("sv_cheats 1")
-        bootstrap.append("demo_ui 0                // 隐藏回放控制条")
+        # 真名是 demo_ui_mode (旧写法 demo_ui 不存在, 见 OVERLAY_PREFIX 的说明)。
+        # 这里放一份只是图个早; 真正生效的是每段 clip 脚本里那一份 —— demo 加载
+        # 之前这几条可能还没注册。
+        bootstrap.append("demo_ui_mode 0   // 隐藏回放控制条")
         bootstrap.append("cl_draw_only_deathnotices 1   // 只留击杀提示, 画面干净")
         bootstrap.append("spec_show_xray 0")
         bootstrap.append("")
@@ -662,6 +707,8 @@ def build_cs2_config(
         'echo "[cs2clipper] 已停止当前片段, 请 exec 下一段的 clip_XXX.cfg"',
     ]) + "\n"
 
+    accounts = player_account_ids(str(demo_path)) if demo_path else {}
+
     clips: list[tuple[str, str]] = []
     for i, seg in enumerate(segs):
         lines: list[str] = []
@@ -669,17 +716,55 @@ def build_cs2_config(
                      f"   R{seg.round_num} {seg.player}")
         lines.append(f"// demo {seg.demo_start_sec:.2f}~{seg.demo_end_sec:.2f}s"
                      f"  →  成片 {seg.out_duration:.2f}s ({seg.speed}x)")
-        lines.append("// 录完这一段时按 F8 停录")
+        lines.append("// 画面停住/播完了就按 F8 停录, 然后 exec 下一段")
         lines.append("")
         lines.append(CERTAIN_PREFIX)
         # 每段一个**独立**的 record name: 否则各段输出会互相覆盖, 最后只剩最后一段
         lines.append(f'mirv_streams record name "{name_prefix}_{seg.name}"')
+
+        # ---- 画面干净: 去掉控制台和回放控制条 (实测第一版两样都录进去了) ----
+        lines.append(OVERLAY_PREFIX)
+        # 真名是 `demo_ui_mode`, **不是** `demo_ui`。之前写 `demo_ui 0` 会
+        # 报 Unknown command: 子串探测命中了 `demo_ui_mode` 里的 `demo_ui`,
+        # 给出的是一个不存在的命令 (`tools/dev/list_cs2_cmds.py --exact` 已核实)。
+        lines.append("demo_ui_mode 0")
+        lines.append("cl_draw_only_deathnotices 1")
+        lines.append("spec_show_xray 0")
+
         lines.append("demo_pause")
         lines.append(f"mirv_skip time to {max(seg.demo_start_sec, 0.0):.3f}")
-        if seg.player:
+
+        # ---- 镜头锁到目标玩家 ----
+        # 优先用 account id (纯数字, 不受 cfg 编码影响); 拿不到才退回名字。
+        acc = accounts.get(seg.player) if seg.player else None
+        if acc:
+            lines.append(f"spec_lock_to_accountid {acc}")
+        elif seg.player:
             lines.append(f'spec_player "{_escape(seg.player)}"')
+
+        # ---- 慢放必须在**录制时**做, 不能靠事后拉长 ----
+        # demo 片段 5.45s 要占成片 9.00s (0.606x)。若按 1x 录, 60fps 只抓到
+        # ~327 帧, 事后 setpts 拉长到 9s 就是每帧停 1.65 帧的时间 = 复制帧凑
+        # 时长, 慢放段会一顿一顿。按 0.606 倍速播, 抓到的帧数正好是 540 帧,
+        # 一帧不重不漏。
+        #
+        # **每段都要写**, 包括 1x 的段: 这个 cvar 是粘的, 上一段设了 0.606
+        # 而这一段不写的话, 就会继承上一段的倍速 —— 那段会被悄悄录成慢放。
+        lines.append(f"demo_timescale {seg.speed:.4f}")
+        # 到该段的 demo 结束 tick 自动暂停: 画面停住就是"该按 F8 了"的信号。
+        # 注意它**不会**自己收尾录制文件, F8 仍然要按。
+        end_tick = int(round(seg.demo_end_sec * TICKRATE))
+        lines.append(f"demo_pauseatservertick {end_tick}")
+
         lines.append("demo_resume")
         lines.append("mirv_streams record start")
+        # 关控制台放在**最后**: 它是个 UI 动作, 万一它让 exec 提前收尾, 放在
+        # 开头就等于"录制根本没开始"。放最后最坏也只是头一两帧还带着控制台
+        # (9 秒 540 帧里的 1~2 帧, 忽略不计)。
+        # 用 `hideconsole` 而不是 `toggleconsole`: 前者是确定性的隐藏, 不取决
+        # 于当时是开是关 —— 将来改成键位驱动 (控制台本来就是关的) 也不会反过来
+        # 把控制台弹出来挡住整个画面。两个名字都在 engine2.dll 里核对过。
+        lines.append("hideconsole")
         clips.append((f"cs2clipper_clip_{i + 1:03d}.cfg", "\n".join(lines) + "\n"))
 
     return ("\n".join(bootstrap) + "\n", stop, clips)
@@ -707,6 +792,32 @@ def write_cs2_config(text: str, *, filename: str = "cs2clipper_record.cfg",
     p = d / filename
     p.write_text(text, encoding="utf-8")
     return p
+
+
+def clean_stale_clip_scripts(target: str | Path,
+                             keep: Sequence[str]) -> list[str]:
+    """删掉 `target` 里不在 `keep` 名单中的 `cs2clipper_clip_*.cfg`.
+
+    为什么要清: 先生成 22 段、再按 2 段生成时, 目录里会同时留着两套片段脚本,
+    长得一模一样。顺手 exec 到一个旧编号就会按**旧计划**录错内容, 而且不报错。
+
+    只动我们自己的命名 (`cs2clipper_clip_` 前缀 + `.cfg`), 别的一律不碰;
+    删不掉也不致命 (权限问题), 只记一笔。
+    """
+    target = Path(target)
+    if not target.is_dir():
+        return []
+    keep_set = set(keep)
+    removed: list[str] = []
+    for p in sorted(target.glob("cs2clipper_clip_*.cfg")):
+        if p.name in keep_set:
+            continue
+        try:
+            p.unlink()
+            removed.append(p.name)
+        except OSError:
+            continue
+    return removed
 
 
 def write_cs2_scripts(
@@ -767,6 +878,16 @@ def write_cs2_scripts(
                                         target_dir=target)))
     for name, text in clips:
         written.append(str(write_cs2_config(text, filename=name, target_dir=target)))
+
+    # 删掉**上一次**生成、这一次不再需要的片段脚本。
+    # 真实隐患: 先生成过 22 段、后来又按 2 段生成 (改参数/换歌), 目录里会同时
+    # 留着 clip_001..022 —— 看起来都是一套的, 顺手 exec 到 clip_018 就会按旧
+    # 计划录错内容, 而且不会有任何报错。所以按本次生成的名单清掉多余的。
+    stale = clean_stale_clip_scripts(target, keep=[name for name, _ in clips])
+    if stale:
+        notes.append(f"清掉了 {len(stale)} 个上一次留下的片段脚本: "
+                     f"{', '.join(stale[:6])}"
+                     f"{' ...' if len(stale) > 6 else ''}")
 
     in_cs2 = target == cs2_cfg_dir()
     if not in_cs2:
@@ -847,12 +968,79 @@ def cs2_work_dirs() -> list[Path]:
     return out
 
 
+#: 递归找产物的最大深度 (相对一级目录)。
+#: 真机实测 (2026-09-21) `afxFfmpegYuv420p` 的落盘形态是
+#:     <root>/<record name>/take0000/<stream name>/video.mp4
+#: 比"帧序列直接放在 take 目录里"**还深一层**, 而且那层用的是 stream 名
+#: (`cs2clipper`)。写死层级的探测会整个漏掉它 -> "真录到了却报没有素材"。
+#: 所以这里按深度递归找, 不再假设某一层。
+DISCOVERY_MAX_DEPTH = 4
+
+
+def _scan_media(stream_dir: Path, label: str) -> tuple[list[dict], list[dict]]:
+    """在 `stream_dir` 下递归找帧序列和视频文件.
+
+    `label` 是调用方给的**一级目录名**(即 `<record name>`), 它才是回对片段的键;
+    比它更深的目录 (takeNNNN / stream 名) 只用来分组, 不能拿来匹配片段名。
+    """
+    frames_out: list[dict[str, Any]] = []
+    videos_out: list[dict[str, Any]] = []
+    if not stream_dir.is_dir():
+        return frames_out, videos_out
+    base = len(stream_dir.parts)
+    for dirpath, dirnames, filenames in os.walk(stream_dir):
+        d = Path(dirpath)
+        if len(d.parts) - base >= DISCOVERY_MAX_DEPTH:
+            dirnames[:] = []                      # 到深度上限就不再往下走
+            continue
+        rel = d.relative_to(stream_dir).parts
+        take = rel[0] if rel and rel[0].lower().startswith("take") else ""
+
+        frames = sorted(f for f in filenames if Path(f).suffix.lower() in IMAGE_EXT)
+        if frames:
+            frames_out.append({
+                "name": label, "take": take or (rel[-1] if rel else ""),
+                "path": str(d), "frames": len(frames),
+                "first": frames[0], "ext": Path(frames[0]).suffix.lower(),
+            })
+        for f in filenames:
+            if Path(f).suffix.lower() in VIDEO_EXT:
+                videos_out.append({
+                    "name": f, "path": str(d / f),
+                    "stream": label, "take": take,
+                    "bytes": (d / f).stat().st_size,
+                })
+    return frames_out, videos_out
+
+
+def _collect(stream_dir: Path, label: str, res: dict[str, Any],
+             seen: set[str]) -> None:
+    """把 `_scan_media` 的结果并进 `res`, 按路径去重.
+
+    去重是必须的: 输出目录和 CS2 工作目录可能重叠, 同一个文件会被扫到两次。
+    """
+    frames, videos = _scan_media(stream_dir, label)
+    for d in frames:
+        if d["path"] in seen:
+            continue
+        seen.add(d["path"])
+        res["frame_dirs"].append(d)
+        res["total_frames"] += d["frames"]
+    for v in videos:
+        if v["path"] in seen:
+            continue
+        seen.add(v["path"])
+        res["videos"].append(v)
+
+
 def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
     """看录制目录里有什么 —— 用来判断"录成功了没".
 
-    HLAE 的 mirv_streams 会按 stream 名建目录, 里面再按 take 分子目录:
-        <name>/take0000/frame_00000000.tga ...
-    所以要往下钻一层找帧序列; 同时也会认已经编码好的视频文件。
+    真实落盘形态 (2026-09-21 用 afxFfmpegYuv420p 实测):
+        <root>/<record name>/take0000/<stream name>/video.mp4
+    帧序列预设则是:
+        <root>/<record name>/take0000/frame_00000000.tga ...
+    两种都要认, 所以按深度递归扫, 不写死层级 (见 DISCOVERY_MAX_DEPTH)。
 
     **两个位置都找**: 配置的输出目录, 以及 CS2 自己的工作目录 (相对路径会把
     产物丢在那里)。只查前者会出现"录到了却报没有素材"。
@@ -874,44 +1062,39 @@ def discover_recordings(output_dir: str | Path) -> dict[str, Any]:
         if not root.is_dir():
             continue
         res["exists"] = True
-        # 候选: root 下的一级目录 (stream 名), 以及 root 自身 (帧直接放这儿)
-        cands = [root] + [p for p in sorted(root.iterdir()) if p.is_dir()]
-        for stream_dir in cands:
-            # take 子目录优先; 没有 take 就直接用 stream_dir
-            takes = [p for p in sorted(stream_dir.iterdir())
-                     if p.is_dir() and p.name.lower().startswith("take")]
-            for holder in (takes or [stream_dir]):
-                try:
-                    entries = list(holder.iterdir())
-                except OSError:
-                    continue
-                frames = [f for f in entries if f.suffix.lower() in IMAGE_EXT]
-                if frames:
-                    key = str(holder)
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    res["frame_dirs"].append({
-                        "name": stream_dir.name, "take": holder.name,
-                        "path": key, "frames": len(frames),
-                        "first": sorted(f.name for f in frames)[0],
-                        "ext": frames[0].suffix.lower(),
-                    })
-                    res["total_frames"] += len(frames)
-                for f in entries:
-                    if f.suffix.lower() in VIDEO_EXT and f.is_file():
-                        key = str(f)
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        # `stream` 才是回对片段用的键。`name` 只是文件名
-                        # (ffmpeg 类预设写出的是 `take0000/take0000.mp4`),
-                        # 拿文件名去匹配 `clip_001` 永远匹配不上 —— 真录完了
-                        # 也会被判成"没有素材"。
-                        res["videos"].append({"name": f.name, "path": key,
-                                              "stream": stream_dir.name,
-                                              "take": holder.name,
-                                              "bytes": f.stat().st_size})
+        try:
+            kids = [p for p in sorted(root.iterdir()) if p.is_dir()]
+            loose = [f for f in root.iterdir() if f.is_file()]
+        except OSError:
+            continue
+
+        # 情况 A: root 自己就是产物目录 —— 里面直接是 takeNNNN/, 或文件直接躺着
+        root_is_take = any(p.name.lower().startswith("take") for p in kids)
+        if root_is_take or any(f.suffix.lower() in IMAGE_EXT + VIDEO_EXT
+                               for f in loose):
+            _collect(root, root.name, res, seen)
+
+        # 情况 B (真实形态): root 下的一级目录 = <record name>。
+        #
+        # **必须设门槛**: 不然会把游戏自带的资源目录也当成录制产物 —— 实测扫
+        # `...\game` 时, `game/core/tools/images/**` 被认成 23 个"帧序列"
+        # (全是 Hammer 的界面图标)、`game/csgo/**` 被认成 44 个视频 (开场动画
+        # webm)。既拖慢探测, 又会把诊断信息彻底淹没。
+        # HLAE 一定会在 <record name> 下立刻建 `takeNNNN/`, 就拿这个当判据。
+        for stream_dir in kids:
+            if root_is_take and stream_dir.name.lower().startswith("take"):
+                continue                          # 情况 A 已经扫过
+            try:
+                sub = list(stream_dir.iterdir())
+            except OSError:
+                continue
+            has_take = any(p.is_dir() and p.name.lower().startswith("take")
+                           for p in sub)
+            has_loose = any(p.is_file()
+                            and p.suffix.lower() in IMAGE_EXT + VIDEO_EXT
+                            for p in sub)
+            if has_take or has_loose:
+                _collect(stream_dir, stream_dir.name, res, seen)
     return res
 
 

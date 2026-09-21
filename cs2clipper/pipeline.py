@@ -438,6 +438,10 @@ def node_render_hlae(state: PipelineState) -> dict[str, Any]:
         )
 
     covered = sum(i.duration for i in items)
+    # 这里原本写的是 `cfg_path`, 但这个函数里从来没有这个变量 —— 一旦真的走到
+    # "规整成功"这条分支就会 NameError 崩掉。之前一直没暴露, 是因为此前每次都
+    # 停在上面"还没找到录制素材"的报错分支上; 真机录出素材之后才炸出来。
+    cfg_path = scripts["cfg_dir"]
     bus.stage_done(
         "render",
         f"HLAE 素材规整完成 {time.time()-t0:.1f}s: {len(items)}/{len(plan)} 段, "

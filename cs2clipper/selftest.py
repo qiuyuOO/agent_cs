@@ -20,10 +20,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 import traceback
 from collections import Counter
 from pathlib import Path
+from unittest import mock
 
 # 必须在其他重库之前导入 (环境重定向)
 from . import config  # noqa: F401
@@ -2774,6 +2776,92 @@ def test_hlae(c: Check) -> None:
 
     c("录制脚本不变量", scripts_are_safe)
 
+    def only_verified_command_names():
+        """生成的脚本里每条 CS2 命令都必须是**核对过真实存在**的名字.
+
+        真实缺陷 (用户真机录出来的画面作证): 画面净化那几条一开始写的是
+        `demo_ui 0`, 但 CS2 里**根本没有** `demo_ui` —— 真名是 `demo_ui_mode`。
+        当时是在 client.dll 里用**子串**搜的, `demo_ui` 命中了 `demo_ui_mode`
+        里的那几个字符, 于是给出一个不存在的命令: 控制台只回 Unknown command,
+        回放控制条照样录进画面。
+
+        所以这里按行取首 token 逐个核对白名单。白名单里的名字都用
+        `tools/dev/list_cs2_cmds.py --exact` 在 CS2 二进制里**整串**核对过。
+        """
+        verified = {
+            "hideconsole", "demo_ui_mode", "cl_draw_only_deathnotices",
+            "spec_show_xray", "demo_pause", "demo_resume", "demo_timescale",
+            "demo_pauseatservertick", "spec_lock_to_accountid", "spec_player",
+            "sv_cheats", "playdemo",
+        }
+        seg = H.RecSegment(index=0, highlight_id="h", player="P", round_num=1,
+                           demo_start_sec=1.0, demo_end_sec=2.0,
+                           out_duration=1.0, speed=1.0, name="clip_001")
+        _, _, clips = H.build_cs2_config([seg], demo_path="d",
+                                         output_dir="o", fps=60)
+        text = clips[0][1]
+        toks = [ln.split("//")[0].split()[0]
+                for ln in text.splitlines() if ln.split("//")[0].strip()]
+        bad = [t for t in toks
+               if not t.startswith(("mirv_", "bind")) and t not in verified]
+        is_true(not bad, f"脚本里出现了未核对过的命令名: {bad}")
+        # 反向断言必须是**整 token** 比较: 子串比较正是当初踩坑的原因
+        is_true("demo_ui" not in toks, "又用回了不存在的 demo_ui")
+        is_true("demo_ui_mode" in toks, "没有关掉回放控制条")
+        is_true("hideconsole" in toks, "没有关掉控制台覆盖层")
+        return f"{len(toks)} 条命令全部在白名单内, 且不含不存在的 demo_ui"
+
+    c("脚本只用核对过的命令名", only_verified_command_names)
+
+    def camera_slowmo_autostop_wired():
+        """锁镜头 / 录制期慢放 / 到点暂停 必须真的写进脚本.
+
+        实测教训: 第一版录出来的画面是**贴地的旁观视角, 没有第一人称武器** ——
+        镜头根本没跟到目标玩家。计划里的名字和 demo 里的名字已逐字节核对相同
+        (`tools/dev/check_player_names.py`), 所以怀疑是 cfg 的编码把中文名弄坏了
+        (我们写 UTF-8, CS2 怎么读不确定)。`spec_lock_to_accountid` 只吃数字,
+        纯 ASCII, 完全绕开这个问题。
+
+        慢放同理: demo 片段 5.45s 要占成片 9.00s, 按 1x 录 60fps 只有 ~327 帧,
+        事后 setpts 拉长到 9s = 每帧停 1.65 帧 = 复制帧凑时长, 会一顿一顿。
+        必须在**录制时**就按 0.606 倍速播。
+        """
+        slow = H.RecSegment(index=0, highlight_id="h", player="王宇瑄",
+                            round_num=6, demo_start_sec=512.75,
+                            demo_end_sec=518.203, out_duration=9.0,
+                            speed=0.606, name="clip_001")
+        flat = H.RecSegment(index=1, highlight_id="h2", player="Q", round_num=7,
+                            demo_start_sec=100.0, demo_end_sec=109.0,
+                            out_duration=9.0, speed=1.0, name="clip_002")
+        orig = H.player_account_ids
+        try:
+            H.player_account_ids = lambda _p: {"王宇瑄": 1798027381}   # type: ignore
+            _, _, clips = H.build_cs2_config([slow, flat], demo_path="d",
+                                             output_dir="o", fps=60)
+            t1, t2 = clips[0][1], clips[1][1]
+            is_true("spec_lock_to_accountid 1798027381" in t1,
+                    f"没有按账号 ID 锁镜头:\n{t1}")
+            is_true("spec_player" not in t1, "既锁了 ID 又用名字, 会互相覆盖")
+            is_true("demo_timescale 0.6060" in t1, "慢放片段没设置录制倍速")
+            # 1x 的段也必须写回去: 这个 cvar 是粘的, 不写就会继承上一段的 0.606,
+            # 于是那段被悄悄录成慢放。
+            is_true("demo_timescale 1.0000" in t2,
+                    f"1x 片段没有把倍速写回 1.0, 会继承上一段的慢放:\n{t2}")
+            # 518.203s * 64 tick/s = 33165 —— 与 demo 分析里该回合的 end_tick 一致
+            is_true("demo_pauseatservertick 33165" in t1,
+                    f"到点暂停的 tick 不对 (应为 33165):\n{t1}")
+
+            H.player_account_ids = lambda _p: {}                      # type: ignore
+            _, _, c2 = H.build_cs2_config([slow], demo_path="d",
+                                          output_dir="o", fps=60)
+            is_true('spec_player "' in c2[0][1],
+                    "拿不到 account id 时没有退回 spec_player")
+        finally:
+            H.player_account_ids = orig                              # type: ignore
+        return "账号ID锁镜头 + 录制期慢放倍速 + 到点暂停 tick 全部写入"
+
+    c("锁镜头/慢放/到点暂停都已写入", camera_slowmo_autostop_wired)
+
     def frames_to_exact_duration():
         """帧序列 → 精确时长片段 (与雷达路径的产物契约一致).
 
@@ -2821,6 +2909,12 @@ def test_hlae(c: Check) -> None:
 
     c("帧序列规整到精确时长(长短两向)", frames_to_exact_duration)
 
+    def isolated_cs2_dirs():
+        """把 `cs2_work_dirs()` 暂时清空 —— 探测默认还会去 CS2 工作目录找产物,
+        而真机录过之后那里**真的躺着 take**。不隔离的话这些用例会随磁盘状态
+        时好时坏 (实测: 真机录完第一段后, 三个用例一起变红)。"""
+        return mock.patch.object(H, "cs2_work_dirs", lambda: [])
+
     def ffmpeg_preset_output_is_usable():
         """ffmpeg 类预设录出来的**视频文件**必须能被流水线吃下去.
 
@@ -2848,35 +2942,99 @@ def test_hlae(c: Check) -> None:
         seed.mkdir(parents=True, exist_ok=True)
         src = take / "take0000.mp4"
         try:
-            # 先用帧序列造一个真实的 1.0 秒 mp4 当"录下来的素材"
-            for i in range(60):
-                Image.new("RGB", (160, 90), (i * 4 % 256, 30, 60)).save(
-                    seed / f"frame_{i:08d}.png")
-            H.frames_to_clip(seed, src, fps=60, target_duration=1.0,
-                             size=(160, 90))
+            with isolated_cs2_dirs():
+                # 先用帧序列造一个真实的 1.0 秒 mp4 当"录下来的素材"
+                for i in range(60):
+                    Image.new("RGB", (160, 90), (i * 4 % 256, 30, 60)).save(
+                        seed / f"frame_{i:08d}.png")
+                H.frames_to_clip(seed, src, fps=60, target_duration=1.0,
+                                 size=(160, 90))
 
-            found = H.discover_recordings(tmp)
-            is_true(len(found["videos"]) == 1,
-                    f"没认出 take 目录里的 mp4: {found['videos']}")
-            is_true(found["videos"][0].get("stream") == "_hlae_route_rec_clip_001",
-                    f"视频条目没带 stream 名, 无法回对片段: {found['videos'][0]}")
+                found = H.discover_recordings(tmp)
+                is_true(len(found["videos"]) == 1,
+                        f"没认出 take 目录里的 mp4: {found['videos']}")
+                is_true(found["videos"][0].get("stream") ==
+                        "_hlae_route_rec_clip_001",
+                        f"视频条目没带 stream 名, 无法回对片段: "
+                        f"{found['videos'][0]}")
 
-            plan = [H.RecSegment(index=0, highlight_id="a", player="P", round_num=1,
-                                 demo_start_sec=0.0, demo_end_sec=1.0,
-                                 out_duration=0.8, speed=1.0, name="clip_001")]
-            items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
-                                                   fps=60, size=(160, 90))
-            is_true(len(items) == 1,
-                    f"录好的视频没能变成片段 (真录成功会白录): {notes}")
-            got = compose.probe_duration(items[0].path) if items else 0.0
-            is_true(abs(got - 0.8) < 0.15,
-                    f"视频素材没被规整到目标时长: {got:.2f}s, 目标 0.80s")
-            return f"stream 名归类正确, 1.00s 视频 → {got:.2f}s 片段 (目标 0.80s)"
+                plan = [H.RecSegment(index=0, highlight_id="a", player="P",
+                                     round_num=1, demo_start_sec=0.0,
+                                     demo_end_sec=1.0, out_duration=0.8,
+                                     speed=1.0, name="clip_001")]
+                items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
+                                                       fps=60, size=(160, 90))
+                is_true(len(items) == 1,
+                        f"录好的视频没能变成片段 (真录成功会白录): {notes}")
+                got = compose.probe_duration(items[0].path) if items else 0.0
+                is_true(abs(got - 0.8) < 0.15,
+                        f"视频素材没被规整到目标时长: {got:.2f}s, 目标 0.80s")
+            return (f"stream 名归类正确, 1.00s 视频 → {got:.2f}s 片段 "
+                    f"(目标 0.80s)")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
             shutil.rmtree(seed, ignore_errors=True)
 
     c("ffmpeg 预设的视频产物能接回流水线", ffmpeg_preset_output_is_usable)
+
+    def real_layout_and_asset_noise():
+        """按**真机落盘形态**探测, 同时不能被游戏自带资源目录带偏.
+
+        真机实测 (afxFfmpegYuv420p) 的层级是
+            <root>/<record name>/take0000/<stream name>/video.mp4
+        比"帧序列直接放在 take 目录里"还深一层, 而且多出来的那层用的是
+        **stream 名**(`cs2clipper`)。写死层级的探测会整个漏掉它。
+
+        另一半是反向的: 探测会去 CS2 的工作目录找, 那里有
+        `game/core/tools/images/**` (Hammer 图标, 被认成 23 个"帧序列") 和
+        `game/csgo/**` (开场动画 webm, 被认成 44 个视频)。不设门槛的话诊断
+        信息会被彻底淹没。HLAE 一定会在 <record name> 下建 `takeNNNN/`,
+        就拿这个当判据。
+        """
+        tmp = config.WORK_DIR / "_hlae_real_layout"
+        shutil.rmtree(tmp, ignore_errors=True)
+        seed = config.WORK_DIR / "_hlae_real_seed"
+        shutil.rmtree(seed, ignore_errors=True)
+        seed.mkdir(parents=True, exist_ok=True)
+        # 真实形态: <record name>/take0000/<stream name>/video.mp4
+        deep = tmp / "_hlae_rec_clip_001" / "take0000" / "cs2clipper"
+        deep.mkdir(parents=True, exist_ok=True)
+        # 干扰项: 一个**没有** takeNNNN 的游戏资源目录
+        noise = tmp / "core" / "tools" / "images" / "hammer"
+        noise.mkdir(parents=True, exist_ok=True)
+        try:
+            with isolated_cs2_dirs():
+                for i in range(60):
+                    Image.new("RGB", (160, 90), (i * 4 % 256, 20, 40)).save(
+                        seed / f"frame_{i:08d}.png")
+                H.frames_to_clip(seed, deep / "video.mp4", fps=60,
+                                 target_duration=1.0, size=(160, 90))
+                Image.new("RGB", (8, 8), (1, 2, 3)).save(noise / "add.png")
+
+                found = H.discover_recordings(tmp)
+                streams = [v["stream"] for v in found["videos"]]
+                is_true(streams == ["_hlae_rec_clip_001"],
+                        f"深层形态没认对 (拿到的 stream={streams})")
+                is_true(found["frame_dirs"] == [],
+                        f"游戏资源目录被误认成帧序列: {found['frame_dirs']}")
+
+                plan = [H.RecSegment(index=0, highlight_id="a", player="P",
+                                     round_num=1, demo_start_sec=0.0,
+                                     demo_end_sec=1.0, out_duration=0.8,
+                                     speed=1.0, name="clip_001")]
+                items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
+                                                       fps=60, size=(160, 90))
+                is_true(len(items) == 1, f"真机形态没能变成片段: {notes}")
+                got = compose.probe_duration(items[0].path) if items else 0.0
+                is_true(abs(got - 0.8) < 0.15,
+                        f"真机形态的时长不对: {got:.2f}s, 目标 0.80s")
+            return (f"深层 video.mp4 认出来了; "
+                    f"{len(found['frame_dirs'])} 个资源目录干扰被挡住")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+            shutil.rmtree(seed, ignore_errors=True)
+
+    c("真机落盘形态 + 资源目录不干扰", real_layout_and_asset_noise)
 
     def missing_material_is_reported():
         """录制素材缺失时必须**报出来**, 而不是静默少一段.
@@ -2891,35 +3049,46 @@ def test_hlae(c: Check) -> None:
         shutil.rmtree(tmp, ignore_errors=True)
         tmp.mkdir(parents=True, exist_ok=True)
         try:
-            empty = H.discover_recordings(tmp)
-            is_true(empty["exists"] and not empty["frame_dirs"],
-                    f"空目录探测结果异常: {empty}")
-            plan = [
-                H.RecSegment(index=0, highlight_id="a", player="P", round_num=1,
-                             demo_start_sec=0.0, demo_end_sec=1.0,
-                             out_duration=1.0, speed=1.0, name="clip_001"),
-                H.RecSegment(index=1, highlight_id="b", player="Q", round_num=2,
-                             demo_start_sec=2.0, demo_end_sec=3.0,
-                             out_duration=1.0, speed=1.0, name="clip_002"),
-            ]
-            items, notes = H.build_from_recordings(plan, tmp, tmp / "clips", fps=60)
-            is_true(items == [], f"没有素材却产出了片段: {items}")
-            is_true(len(notes) == 2, f"两段都缺素材, 却只报 {len(notes)} 条")
-            is_true(all("clip_00" in n for n in notes), f"说明里没带片段名: {notes}")
+            with isolated_cs2_dirs():
+                empty = H.discover_recordings(tmp)
+                is_true(empty["exists"] and not empty["frame_dirs"],
+                        f"空目录探测结果异常: {empty}")
+                plan = [
+                    H.RecSegment(index=0, highlight_id="a", player="P",
+                                 round_num=1, demo_start_sec=0.0,
+                                 demo_end_sec=1.0, out_duration=1.0,
+                                 speed=1.0, name="clip_001"),
+                    H.RecSegment(index=1, highlight_id="b", player="Q",
+                                 round_num=2, demo_start_sec=2.0,
+                                 demo_end_sec=3.0, out_duration=1.0,
+                                 speed=1.0, name="clip_002"),
+                ]
+                items, notes = H.build_from_recordings(plan, tmp, tmp / "clips",
+                                                       fps=60)
+                is_true(items == [], f"没有素材却产出了片段: {items}")
+                is_true(len(notes) == 2,
+                        f"两段都缺素材, 却只报 {len(notes)} 条")
+                is_true(all("clip_00" in n for n in notes),
+                        f"说明里没带片段名: {notes}")
 
-            # 名字形态匹配: 三种真实可能出现的形态都要能对上
-            for style, dirname in (("精确", "clip_001"),
-                                   ("带目录前缀(真实形态)", "hlae_record_clip_001"),
-                                   ("带额外后缀", "clip_001_take2")):
-                d = tmp / dirname
-                d.mkdir(parents=True, exist_ok=True)
-                Image.new("RGB", (32, 18), (10, 20, 30)).save(d / "f_00000000.png")
-                hit = H._match_stream(plan[0], [x["name"] for x in
-                                                H.discover_recordings(tmp)["frame_dirs"]])
-                is_true(hit == dirname,
-                        f"{style} 形态 ({dirname}) 匹配失败, 得到 {hit!r}")
-                shutil.rmtree(d, ignore_errors=True)
-            return f"空目录 -> 0 片段 + {len(notes)} 条说明; 三种名字形态都能匹配"
+                # 名字形态匹配: 三种真实可能出现的形态都要能对上
+                for style, dirname in (
+                        ("精确", "clip_001"),
+                        ("带目录前缀(真实形态)", "hlae_record_clip_001"),
+                        ("带额外后缀", "clip_001_take2")):
+                    d = tmp / dirname
+                    d.mkdir(parents=True, exist_ok=True)
+                    Image.new("RGB", (32, 18), (10, 20, 30)).save(
+                        d / "f_00000000.png")
+                    hit = H._match_stream(
+                        plan[0],
+                        [x["name"] for x in
+                         H.discover_recordings(tmp)["frame_dirs"]])
+                    is_true(hit == dirname,
+                            f"{style} 形态 ({dirname}) 匹配失败, 得到 {hit!r}")
+                    shutil.rmtree(d, ignore_errors=True)
+            return (f"空目录 -> 0 片段 + {len(notes)} 条说明; "
+                    f"三种名字形态都能匹配")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
@@ -2944,6 +3113,10 @@ def test_hlae(c: Check) -> None:
         # 不能依赖默认的 work/hlae_record: 那里可能真有录制素材 (比如刚跑过
         # 端到端验证), 那样这条用例就会从"应当报错"变成"真的去出片", 失败原因
         # 还跟被测逻辑无关 —— 测试依赖环境状态是坏味道。
+        #
+        # 光换 hlae_output_dir 还**不够**: 探测同时会去 CS2 的工作目录找产物
+        # (record name 会被当成相对路径), 而真机录过之后那里真的躺着 take。
+        # 所以这里连 cs2_work_dirs 一起隔离, 否则用例仍会随磁盘状态变红。
         orig_prefs = store_mod.load_prefs
         probe_rec = config.WORK_DIR / "_hlae_route_rec"
         shutil.rmtree(probe_rec, ignore_errors=True)
@@ -2951,27 +3124,29 @@ def test_hlae(c: Check) -> None:
         try:
             store_mod.load_prefs = lambda path=None: {**orig_prefs(path),   # type: ignore
                                                   "hlae_output_dir": str(probe_rec)}
-            try:
-                P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
-                      use_llm=False, verbose=False, use_prefs=False, record=False,
-                      record_source="hlae")
-                raise AssertionError("record_source=hlae 却没有走 HLAE 路径")
-            except RuntimeError as e:
-                msg = str(e)
-                is_true("录制素材" in msg or "录制脚本" in msg,
-                        f"HLAE 路径的报错没说清下一步: {msg[:160]}")
-            # 未知取值必须被拒 (而不是静默当成 radar)
-            try:
-                P.run(str(track), None, out_dir=out, max_clips=2, max_cards=4,
-                      use_llm=False, verbose=False, use_prefs=False, record=False,
-                      record_source="nonsense")
-                raise AssertionError("未知 record_source 未被拒绝")
-            except ValueError:
-                pass
+            with isolated_cs2_dirs():
+                try:
+                    P.run(str(track), None, out_dir=out, max_clips=2,
+                          max_cards=4, use_llm=False, verbose=False,
+                          use_prefs=False, record=False, record_source="hlae")
+                    raise AssertionError("record_source=hlae 却没有走 HLAE 路径")
+                except RuntimeError as e:
+                    msg = str(e)
+                    is_true("录制素材" in msg or "录制脚本" in msg,
+                            f"HLAE 路径的报错没说清下一步: {msg[:160]}")
+                # 未知取值必须被拒 (而不是静默当成 radar)
+                try:
+                    P.run(str(track), None, out_dir=out, max_clips=2,
+                          max_cards=4, use_llm=False, verbose=False,
+                          use_prefs=False, record=False,
+                          record_source="nonsense")
+                    raise AssertionError("未知 record_source 未被拒绝")
+                except ValueError:
+                    pass
         finally:
             store_mod.load_prefs = orig_prefs                                  # type: ignore
             shutil.rmtree(probe_rec, ignore_errors=True)
-        return "hlae 分流生效, 未知取值被拒 (用独立空录制目录, 不受环境状态影响)"
+        return "hlae 分流生效, 未知取值被拒 (录制目录与 CS2 工作目录都已隔离)"
 
     c("record_source 分流与校验", pipeline_routing)
 
@@ -3087,6 +3262,16 @@ def summarize() -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 控制台编码兜底: 中文 Windows 的控制台是 GBK, 而汇总里用的 ✗ / ✓ 这类
+    # 符号不在 GBK 里 —— 之前**一有失败项, 汇总本身就 UnicodeEncodeError 崩掉**,
+    # 最需要看失败详情的时候反而什么都看不到。所以先把输出流锁成 UTF-8 且
+    # 永不抛异常。
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, OSError):
+            pass
+
     ap = argparse.ArgumentParser(description="cs2clipper 完整自检")
     ap.add_argument("--e2e", action="store_true", help="跑端到端出片 (慢)")
     ap.add_argument("--llm", action="store_true", help="端到端时额外验证 LLM 编排")
